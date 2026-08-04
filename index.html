@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="mercurio" data-mono="false">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MoneyFlies | Gestão Financeira Dedicada</title>
+
+    <!-- PWA: Manifest e ícone -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a0f00">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="MoneyFlies">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- CSS do App (TimeFlies Swiss Minimalist Design System) -->
+    <link rel="stylesheet" href="style.css?v=1.0.0">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- CryptoJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+
+    <style>
+        /* Global Reset & Body Container */
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            min-height: 100vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: flex-start !important;
+            align-items: stretch !important;
+            background: var(--bg-gradient) !important;
+            color: var(--text-main) !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            font-family: var(--font-primary, 'Plus Jakarta Sans', sans-serif) !important;
+        }
+
+        .moneyflies-app-wrapper {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            min-height: 100vh;
+            flex: 1;
+        }
+
+        .moneyflies-header {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 28px;
+            background: var(--panel-bg, rgba(18, 18, 22, 0.92));
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--panel-border, rgba(255, 255, 255, 0.08));
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-sizing: border-box;
+        }
+
+        .moneyflies-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--text-main, #ffffff);
+        }
+
+        .moneyflies-badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            background: rgba(234, 88, 12, 0.15);
+            color: var(--accent, #f97316);
+            border: 1px solid rgba(234, 88, 12, 0.3);
+            padding: 2px 8px;
+            border-radius: 12px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        [data-theme="light"] .moneyflies-badge {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--primary, #dc2626);
+            border-color: rgba(220, 38, 38, 0.3);
+        }
+
+        .moneyflies-nav {
+            width: 100%;
+            display: flex;
+            gap: 8px;
+            padding: 10px 28px;
+            background: var(--panel-bg-subtle, rgba(12, 12, 15, 0.75));
+            border-bottom: 1px solid var(--panel-border-subtle, rgba(255, 255, 255, 0.05));
+            overflow-x: auto;
+            box-sizing: border-box;
+        }
+
+        .moneyflies-nav-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: var(--border-radius-md, 8px);
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--text-muted, #94a3b8);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .moneyflies-nav-btn:hover {
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-main, #ffffff);
+        }
+
+        [data-theme="light"] .moneyflies-nav-btn:hover {
+            background: rgba(0, 0, 0, 0.04);
+            color: var(--text-main);
+        }
+
+        .moneyflies-nav-btn.active {
+            background: rgba(234, 88, 12, 0.15);
+            border-color: var(--primary, #ea580c);
+            color: var(--text-main, #ffffff);
+            font-weight: 700;
+        }
+
+        [data-theme="light"] .moneyflies-nav-btn.active {
+            background: rgba(220, 38, 38, 0.08);
+            border-color: var(--primary, #dc2626);
+            color: var(--primary, #dc2626);
+        }
+
+        main.moneyflies-main-content {
+            flex: 1;
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+            box-sizing: border-box;
+        }
+
+        .finance-card-summary {
+            background: var(--panel-bg-subtle, rgba(255, 255, 255, 0.025));
+            border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.07));
+            border-radius: var(--border-radius-lg, 12px);
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .finance-card-summary:hover {
+            border-color: var(--panel-border-highlight, rgba(255, 255, 255, 0.15));
+        }
+
+        .finance-card-title {
+            font-size: 0.75rem;
+            color: var(--text-muted, #94a3b8);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+        }
+
+        .finance-card-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+        }
+
+        .value-blur {
+            filter: blur(6px);
+            user-select: none;
+            transition: filter 0.2s ease;
+        }
+
+        /* SOFT GLASS FORM INPUTS & SELECTS FIX */
+        .form-control, .form-input, input[type="text"], input[type="number"], input[type="date"], input[type="month"], input[type="password"], select {
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border-radius: var(--border-radius-md, 8px) !important;
+            color: var(--text-main, #ffffff) !important;
+            padding: 10px 14px !important;
+            font-family: inherit !important;
+            font-size: 0.88rem !important;
+            transition: all 0.2s ease !important;
+            outline: none !important;
+            box-shadow: none !important;
+            box-sizing: border-box !important;
+        }
+
+        [data-theme="light"] .form-control,
+        [data-theme="light"] .form-input,
+        [data-theme="light"] input[type="text"],
+        [data-theme="light"] input[type="number"],
+        [data-theme="light"] input[type="date"],
+        [data-theme="light"] input[type="month"],
+        [data-theme="light"] input[type="password"],
+        [data-theme="light"] select {
+            background: rgba(0, 0, 0, 0.03) !important;
+            border: 1px solid rgba(0, 0, 0, 0.15) !important;
+            color: var(--text-main, #0f172a) !important;
+        }
+
+        .form-control:focus, .form-input:focus, input:focus, select:focus {
+            border-color: var(--primary, #ea580c) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.25) !important;
+        }
+
+        [data-theme="light"] .form-control:focus,
+        [data-theme="light"] .form-input:focus,
+        [data-theme="light"] input:focus,
+        [data-theme="light"] select:focus {
+            border-color: var(--primary, #dc2626) !important;
+            background: rgba(220, 38, 38, 0.04) !important;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+        }
+
+        select option {
+            background-color: #1a0f00 !important;
+            color: #ffffff !important;
+        }
+
+        [data-theme="light"] select option {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+        }
+
+        .btn-primary {
+            background: var(--primary, #ea580c) !important;
+            color: #ffffff !important;
+            border: none !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .btn-primary:hover {
+            filter: brightness(1.1) !important;
+        }
+    </style>
+</head>
+<body class="style-scroll">
+
+    <!-- TELA DE LOGIN & BLOQUEIO DE SEGURANÇA -->
+    <div id="login-overlay" style="position: fixed; inset: 0; z-index: 9999; background: var(--bg-gradient, #0f0a05); backdrop-filter: blur(24px); display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
+        <div class="glass-panel" style="max-width: 450px; width: 100%; padding: 36px 32px; border-radius: 20px; text-align: center; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 20px 50px rgba(0,0,0,0.6);">
+            
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px;">
+                <i data-lucide="wallet" style="width: 32px; height: 32px; color: var(--primary, #ea580c);"></i>
+                <span style="font-size: 1.6rem; font-weight: 800; color: var(--text-main);">MoneyFlies</span>
+            </div>
+
+            <span class="moneyflies-badge" style="display: inline-block; margin-bottom: 18px;">Finanças Dedicadas & Privadas</span>
+
+            <!-- Apresentação Breve sobre o Objetivo do Aplicativo -->
+            <p style="font-size: 0.88rem; color: var(--text-muted, #94a3b8); line-height: 1.5; margin-bottom: 24px; text-align: center;">
+                Sua plataforma privada para controle de despesas, acompanhamento de faturas de cartão de crédito, gestão de contas recorrentes e projeção de saldo com total fidelidade.
+            </p>
+
+            <form id="login-form" onsubmit="handleLoginSubmit(event)" style="display: flex; flex-direction: column; gap: 14px;">
+                <div style="text-align: left;">
+                    <label style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; display: block;">Senha de Acesso</label>
+                    <input type="password" id="login-password-input" inputmode="numeric" pattern="[0-9]*" required placeholder="Digite sua senha..." class="form-control" style="width: 100%; padding: 12px 16px !important; font-size: 0.95rem !important;">
+                </div>
+
+                <div id="login-error-msg" style="font-size: 0.8rem; color: #ef4444; font-weight: 700; display: none;">
+                    ⚠️ Senha incorreta. Tente novamente.
+                </div>
+
+                <button type="submit" class="btn-primary" style="padding: 12px; font-weight: 800; font-size: 0.95rem; border-radius: var(--border-radius-md, 8px); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px;">
+                    <i data-lucide="lock" style="width: 18px; height: 18px;"></i> Entrar no MoneyFlies
+                </button>
+            </form>
+
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 22px;">
+                💡 Senha padrão de primeiro acesso: <strong>admin</strong> (pode ser alterada em Configurações).
+            </div>
+        </div>
+    </div>
+
+    <div class="moneyflies-app-wrapper">
+
+        <!-- CABEÇALHO DEDICADO DO MONEYFLIES -->
+        <header class="moneyflies-header">
+            <div class="moneyflies-logo">
+                <i data-lucide="wallet" style="width: 26px; height: 26px; color: var(--primary, #ea580c);"></i>
+                <span>MoneyFlies</span>
+                <span class="moneyflies-badge">Finanças Dedicadas</span>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <!-- Seletor de Tema (Mercúrio / Light) -->
+                <select id="theme-selector" onchange="switchTheme(this.value)" class="form-control" style="padding: 4px 10px !important; font-size: 0.8rem !important; width: 130px;">
+                    <option value="mercurio">🔥 Escuro</option>
+                    <option value="light">☀️ Claro</option>
+                </select>
+
+                <!-- Controles do Mês -->
+                <div style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.04); padding: 4px 10px; border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.08);">
+                    <button class="btn-icon btn-sm" onclick="changeFinanceMonth(-1)" title="Mês Anterior" style="background: transparent; border: none; cursor: pointer; color: var(--text-main);">
+                        <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i>
+                    </button>
+                    <input type="month" id="finance-month-picker" onchange="onFinanceMonthChange(this.value)" style="background: transparent !important; border: none !important; color: var(--text-main) !important; font-weight: 700; font-size: 0.85rem; font-family: inherit; cursor: pointer; outline: none; padding: 0 !important;">
+                    <button class="btn-icon btn-sm" onclick="changeFinanceMonth(1)" title="Próximo Mês" style="background: transparent; border: none; cursor: pointer; color: var(--text-main);">
+                        <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+                    </button>
+                </div>
+
+                <!-- Ocultar/Mostrar Valores -->
+                <button class="btn-icon btn-sm" id="btn-toggle-finance-visibility" onclick="toggleFinanceVisibility()" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); padding: 6px 10px; border-radius: var(--border-radius-md); cursor: pointer; color: var(--text-main);" title="Ocultar/Mostrar Valores">
+                    <i data-lucide="eye" id="eye-icon" style="width: 18px; height: 18px;"></i>
+                </button>
+
+                <!-- Bloquear Sessão -->
+                <button class="btn-icon btn-sm" onclick="lockFinanceSession()" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); padding: 6px 10px; border-radius: var(--border-radius-md); cursor: pointer; color: var(--text-main);" title="Bloquear Tela">
+                    <i data-lucide="lock" style="width: 18px; height: 18px;"></i>
+                </button>
+
+                <!-- Ação Principal -->
+                <button class="btn-primary btn-sm" onclick="openFinanceTransactionModal()" style="display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 0.85rem; font-weight: 700; border-radius: var(--border-radius-md);">
+                    <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Novo Lançamento
+                </button>
+            </div>
+        </header>
+
+        <!-- NAVEGAÇÃO DE SUB-ABAS -->
+        <nav class="moneyflies-nav">
+            <button class="moneyflies-nav-btn active" data-subtab="dashboard" onclick="switchFinanceSubTab('dashboard')">
+                <i data-lucide="layout-dashboard" style="width: 16px; height: 16px;"></i> Dashboard
+            </button>
+            <button class="moneyflies-nav-btn" data-subtab="cash" onclick="switchFinanceSubTab('cash')">
+                <i data-lucide="arrow-right-left" style="width: 16px; height: 16px;"></i> Lançamentos / Despesas
+            </button>
+            <button class="moneyflies-nav-btn" data-subtab="card" onclick="switchFinanceSubTab('card')">
+                <i data-lucide="credit-card" style="width: 16px; height: 16px;"></i> Cartões de Crédito
+            </button>
+            <button class="moneyflies-nav-btn" data-subtab="income" onclick="switchFinanceSubTab('income')">
+                <i data-lucide="trending-up" style="width: 16px; height: 16px;"></i> Receitas
+            </button>
+            <button class="moneyflies-nav-btn" data-subtab="fixed" onclick="switchFinanceSubTab('fixed')">
+                <i data-lucide="shield-alert" style="width: 16px; height: 16px;"></i> Despesas Fixas & Assinaturas
+            </button>
+            <button class="moneyflies-nav-btn" data-subtab="settings" onclick="switchFinanceSubTab('settings')">
+                <i data-lucide="settings" style="width: 16px; height: 16px;"></i> Configurações & Dados
+            </button>
+        </nav>
+
+        <!-- CONTEÚDO DAS SUB-ABAS -->
+        <main class="moneyflies-main-content">
+
+            <!-- 1. DASHBOARD -->
+            <div id="subtab-dashboard" class="moneyflies-subtab-content" style="display: block;">
+                <!-- CARDS DE RESUMO (KPIs) -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                    <div class="finance-card-summary">
+                        <span class="finance-card-title">Receitas do Mês</span>
+                        <span class="finance-card-value val-sensivel" id="dash-incomes-total" style="color: var(--success, #10b981);">R$ 0,00</span>
+                    </div>
+                    <div class="finance-card-summary">
+                        <span class="finance-card-title">Gastos À Vista</span>
+                        <span class="finance-card-value val-sensivel" id="dash-cash-total" style="color: #3b82f6;">R$ 0,00</span>
+                    </div>
+                    <div class="finance-card-summary">
+                        <span class="finance-card-title">Faturas de Cartão</span>
+                        <span class="finance-card-value val-sensivel" id="dash-card-total" style="color: #f59e0b;">R$ 0,00</span>
+                    </div>
+                    <div class="finance-card-summary">
+                        <span class="finance-card-title">Despesas Fixas</span>
+                        <span class="finance-card-value val-sensivel" id="dash-fixed-total" style="color: #8b5cf6;">R$ 0,00</span>
+                    </div>
+                    <div class="finance-card-summary" style="background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12);">
+                        <span class="finance-card-title">Previsão de Saldo Final</span>
+                        <span class="finance-card-value val-sensivel" id="dash-balance-total" style="color: var(--primary, #ea580c);">R$ 0,00</span>
+                        <div id="dash-balance-desc" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;"></div>
+                    </div>
+                </div>
+
+                <!-- PAINEL DE RESUMO DOS CARTÕES DE CRÉDITO -->
+                <div class="glass-panel" style="padding: 20px; margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="credit-card" style="color: #f59e0b; width: 18px; height: 18px;"></i>
+                            <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin: 0;">Comprometimento & Crédito Disponível nos Cartões</h3>
+                        </div>
+                        <button class="btn-secondary btn-sm" onclick="switchFinanceSubTab('card')" style="font-size: 0.75rem; padding: 4px 10px;">Ver Faturas Detalhadas &rarr;</button>
+                    </div>
+                    <div id="fin-dash-limits-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;"></div>
+                </div>
+
+                <!-- GRÁFICOS DO DASHBOARD -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; margin-bottom: 24px;">
+                    <div class="glass-panel" style="padding: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main);">Despesas por Categoria</h3>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);" id="dash-category-month-label"></span>
+                        </div>
+                        <div style="height: 280px; position: relative;">
+                            <canvas id="chart-finance-categories"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel" style="padding: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main);" id="chart-semester-title">Projeção & Saldo Semestral</h3>
+                        </div>
+                        <div style="height: 280px; position: relative;">
+                            <canvas id="chart-finance-history"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. LANÇAMENTOS / À VISTA -->
+            <div id="subtab-cash" class="moneyflies-subtab-content" style="display: none;">
+                <div class="glass-panel" style="padding: 20px;">
+                    <!-- BARRA DE FILTROS -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <div style="display: flex; gap: 10px; flex: 1; min-width: 280px;">
+                            <input type="text" id="filter-expense-search" oninput="renderExpensesTable()" placeholder="Buscar por descrição..." class="form-control" style="flex: 1;">
+                            <select id="filter-expense-category" onchange="renderExpensesTable()" class="form-control" style="width: 180px;">
+                                <option value="ALL">Todas as Categorias</option>
+                            </select>
+                            <select id="filter-expense-method" onchange="renderExpensesTable()" class="form-control" style="width: 180px;">
+                                <option value="cash" selected>À Vista / Pix</option>
+                                <option value="ALL">Todas as Formas</option>
+                                <option value="card">Cartão de Crédito</option>
+                            </select>
+                        </div>
+                        <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">
+                            Total Filtrado: <span id="cash-table-total" class="val-sensivel" style="color: var(--danger, #ef4444); font-size: 1rem; font-weight: 800;">R$ 0,00</span>
+                        </div>
+                    </div>
+
+                    <!-- TABELA -->
+                    <div style="overflow-x: auto;">
+                        <table class="finance-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid rgba(255,255,255,0.08); font-size: 0.8rem; color: var(--text-muted);">
+                                    <th style="padding: 10px;">Data</th>
+                                    <th style="padding: 10px;">Categoria</th>
+                                    <th style="padding: 10px;">Descrição / Observação</th>
+                                    <th style="padding: 10px;">Forma de Pagamento</th>
+                                    <th style="padding: 10px; text-align: right;">Valor</th>
+                                    <th style="padding: 10px; text-align: center; width: 80px;">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expenses-tbody"></tbody>
+                        </table>
+                        <div id="expenses-empty-msg" style="text-align: center; padding: 40px; color: var(--text-muted); font-size: 0.9rem; display: none;">
+                            Nenhuma despesa encontrada para este filtro.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. CARTÕES DE CRÉDITO -->
+            <div id="subtab-card" class="moneyflies-subtab-content" style="display: none;">
+                <div class="glass-panel" style="padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <label style="font-weight: 700; font-size: 0.85rem; color: var(--text-muted);">Selecione o Cartão:</label>
+                            <select id="card-selector" onchange="renderCreditCardView()" class="form-control" style="width: 220px;"></select>
+                        </div>
+                        <button class="btn-secondary btn-sm" onclick="openCreditCardSettingsModal()" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.8rem;">
+                            <i data-lucide="credit-card" style="width: 14px; height: 14px;"></i> Gerenciar Cartões
+                        </button>
+                    </div>
+
+                    <!-- MÉTRICAS DETALHADAS DO CARTÃO (FATURA ATUAL + CHECKBOX PAGAMENTO + SALDO DEVEDOR TOTAL + CRÉDITO DISPONÍVEL) -->
+                    <div id="card-summary-bar" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px; background: rgba(255,255,255,0.02); padding: 14px; border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.05);">
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Fatura do Mês</div>
+                            <div id="card-fatura-val" class="val-sensivel" style="font-size: 1.25rem; font-weight: 800; color: #f59e0b;">R$ 0,00</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Status Pagamento Fatura</div>
+                            <div style="margin-top: 4px;">
+                                <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: var(--text-main);">
+                                    <input type="checkbox" id="card-invoice-paid-checkbox" onchange="toggleCardInvoicePaid(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <span id="card-invoice-paid-label">Paga neste mês</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Total Comprometido (Futuras)</div>
+                            <div id="card-committed-val" class="val-sensivel" style="font-size: 1.25rem; font-weight: 800; color: #ef4444;">R$ 0,00</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Crédito Disponível Real</div>
+                            <div id="card-limit-avail" class="val-sensivel" style="font-size: 1.25rem; font-weight: 800; color: var(--success, #10b981);">R$ 0,00</div>
+                        </div>
+                    </div>
+
+                    <table class="finance-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid rgba(255,255,255,0.08); font-size: 0.8rem; color: var(--text-muted);">
+                                <th style="padding: 10px;">Data Compra</th>
+                                <th style="padding: 10px;">Categoria</th>
+                                <th style="padding: 10px;">Observação / Descrição</th>
+                                <th style="padding: 10px; text-align: center;">Parcela</th>
+                                <th style="padding: 10px; text-align: right;">Valor</th>
+                                <th style="padding: 10px; text-align: center; width: 80px;">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="card-tbody"></tbody>
+                    </table>
+                    <div id="card-empty-msg" style="text-align: center; padding: 40px; color: var(--text-muted); font-size: 0.9rem; display: none;">
+                        Nenhuma compra lançada neste cartão para esta fatura.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. RECEITAS -->
+            <div id="subtab-income" class="moneyflies-subtab-content" style="display: none;">
+                <div class="glass-panel" style="padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main);">Receitas do Mês</h3>
+                        <div style="font-size: 0.9rem; font-weight: 700; color: var(--text-muted);">
+                            Total Entrada: <span id="income-total-val" class="val-sensivel" style="color: var(--success, #10b981); font-size: 1.1rem; font-weight: 800;">R$ 0,00</span>
+                        </div>
+                    </div>
+
+                    <table class="finance-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid rgba(255,255,255,0.08); font-size: 0.8rem; color: var(--text-muted);">
+                                <th style="padding: 10px;">Data</th>
+                                <th style="padding: 10px;">Categoria</th>
+                                <th style="padding: 10px;">Origem / Descrição</th>
+                                <th style="padding: 10px; text-align: right;">Valor</th>
+                                <th style="padding: 10px; text-align: center; width: 80px;">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="income-tbody"></tbody>
+                    </table>
+                    <div id="income-empty-msg" style="text-align: center; padding: 40px; color: var(--text-muted); font-size: 0.9rem; display: none;">
+                        Nenhuma receita cadastrada neste mês.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. DESPESAS FIXAS & ASSINATURAS -->
+            <div id="subtab-fixed" class="moneyflies-subtab-content" style="display: none;">
+                <div class="glass-panel" style="padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                        <div>
+                            <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main);">Despesas Fixas e Contas Recorrentes</h3>
+                            <div id="fixed-status-counter" style="font-size: 0.8rem; color: var(--text-muted);">0 de 0 pagas neste mês</div>
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">
+                                Total do Mês: <span id="fixed-table-total" class="val-sensivel" style="color: #8b5cf6; font-size: 1.15rem; font-weight: 800;">R$ 0,00</span>
+                            </div>
+                            <button class="btn-primary btn-sm" onclick="openFixedExpenseModal()" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.8rem;">
+                                <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Nova Despesa Fixa
+                            </button>
+                        </div>
+                    </div>
+
+                    <table class="finance-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid rgba(255,255,255,0.08); font-size: 0.8rem; color: var(--text-muted);">
+                                <th style="padding: 10px; text-align: center; width: 50px;">Pago</th>
+                                <th style="padding: 10px;">Nome da Despesa</th>
+                                <th style="padding: 10px;">Período / Vigência</th>
+                                <th style="padding: 10px; text-align: center;">Vence Dia</th>
+                                <th style="padding: 10px; text-align: right;">Valor no Mês</th>
+                                <th style="padding: 10px; text-align: center; width: 100px;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fixed-tbody"></tbody>
+                    </table>
+                    <div id="fixed-empty-msg" style="text-align: center; padding: 40px; color: var(--text-muted); font-size: 0.9rem; display: none;">
+                        Nenhuma despesa fixa ativa para este mês.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. CONFIGURAÇÕES E IMPORTAÇÃO/EXPORTAÇÃO -->
+            <div id="subtab-settings" class="moneyflies-subtab-content" style="display: none;">
+                <div class="glass-panel" style="padding: 24px; max-width: 800px; margin: 0 auto;">
+                    <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin-bottom: 8px;">Configurações, Segurança & Dados</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 24px;">
+                        Gerencie a proteção de acesso por senha, a importação do TimeFlies original e backups de dados.
+                    </p>
+
+                    <!-- CARD DE SEGURANÇA E SENHA -->
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 18px; border-radius: var(--border-radius-md); margin-bottom: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                            <i data-lucide="shield-check" style="color: #60a5fa;"></i>
+                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main);">Segurança & Senha de Acesso</h4>
+                        </div>
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
+                            Configure se a tela de login com senha será exigida ao abrir o aplicativo e altere sua senha de acesso.
+                        </p>
+
+                        <form onsubmit="saveSecuritySettings(event)" style="display: flex; flex-direction: column; gap: 12px; max-width: 420px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700;">
+                                <input type="checkbox" id="setting-security-enable" style="width: 18px; height: 18px; cursor: pointer;">
+                                Exigir senha para acessar o aplicativo
+                            </label>
+
+                            <div>
+                                <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; display: block;">Nova Senha de Acesso</label>
+                                <input type="password" id="setting-new-password" inputmode="numeric" pattern="[0-9]*" placeholder="Digite a nova senha (deixe vazio para manter a atual)..." class="form-control">
+                            </div>
+
+                            <button type="submit" class="btn-primary btn-sm" style="padding: 8px 14px; font-weight: 700; width: fit-content;">
+                                Salvar Configurações de Segurança
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- CARD 1: IMPORTAR DO TIMEFLIES -->
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 18px; border-radius: var(--border-radius-md); margin-bottom: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                            <i data-lucide="download" style="color: var(--accent, #f97316);"></i>
+                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main);">Importar Backup do TimeFlies Original</h4>
+                        </div>
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
+                            Carregue o arquivo JSON exportado do TimeFlies para extrair automaticamente todas as suas despesas, receitas, faturas, cartões e contas fixas.
+                        </p>
+                        <button class="btn-secondary" onclick="openTimeFliesImportModal()" style="display: flex; align-items: center; gap: 8px; font-weight: 700;">
+                            <i data-lucide="file-down"></i> Selecionar Arquivo do TimeFlies (.json)
+                        </button>
+                    </div>
+
+                    <!-- CARD 2: EXPORTAR APENAS FINANÇAS -->
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 18px; border-radius: var(--border-radius-md); margin-bottom: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                            <i data-lucide="upload" style="color: var(--success, #10b981);"></i>
+                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main);">Exportar Dados Exclusivos do MoneyFlies</h4>
+                        </div>
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
+                            Gera um arquivo JSON contendo estritamente os seus dados de finanças para backup contínuo nesta nova plataforma.
+                        </p>
+                        <button class="btn-primary" onclick="exportMoneyFliesBackup()" style="display: flex; align-items: center; gap: 8px; font-weight: 700;">
+                            <i data-lucide="file-up"></i> Exportar Backup de Finanças (.json)
+                        </button>
+                    </div>
+
+                    <!-- CARD 3: RESETAR REGISTROS -->
+                    <div style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); padding: 18px; border-radius: var(--border-radius-md);">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                            <i data-lucide="trash-2" style="color: #ef4444;"></i>
+                            <h4 style="font-size: 0.95rem; font-weight: 700; color: #ef4444;">Limpeza de Dados Locais</h4>
+                        </div>
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
+                            Apaga permanentemente todos os registros de finanças armazenados localmente no navegador e no servidor Python.
+                        </p>
+                        <button class="btn-secondary" onclick="resetMoneyFliesData()" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);">
+                            Limpar Todos os Dados de Finanças
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+    </div>
+
+    <!-- MODAIS DE OPERAÇÃO -->
+
+    <!-- 1. MODAL: NOVA/EDITAR TRANSAÇÃO -->
+    <div id="modal-finance-transaction" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 500px; padding: 24px; border-radius: var(--border-radius-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                <h3 id="modal-trans-title" style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Novo Lançamento</h3>
+                <button class="btn-icon" onclick="closeModal('modal-finance-transaction')"><i data-lucide="x"></i></button>
+            </div>
+            <form id="form-finance-transaction" onsubmit="saveFinanceTransaction(event)">
+                <input type="hidden" id="trans-id">
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 14px;">
+                    <label style="flex: 1; text-align: center; padding: 8px; border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; font-size: 0.85rem; font-weight: 700;" id="label-type-expense">
+                        <input type="radio" name="transType" value="expense" checked onchange="toggleTransTypeUI('expense')" style="display: none;">
+                        Despesa
+                    </label>
+                    <label style="flex: 1; text-align: center; padding: 8px; border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; font-size: 0.85rem; font-weight: 700;" id="label-type-income">
+                        <input type="radio" name="transType" value="income" onchange="toggleTransTypeUI('income')" style="display: none;">
+                        Receita
+                    </label>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Data</label>
+                        <input type="date" id="trans-date" required class="form-control">
+                    </div>
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Valor (R$)</label>
+                        <input type="number" step="0.01" min="0.01" id="trans-amount" required placeholder="0,00" class="form-control">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Descrição / Observação</label>
+                    <input type="text" id="trans-desc" required placeholder="Ex: Mercado, Salário, Internet" class="form-control">
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Categoria</label>
+                    <select id="trans-category" required class="form-control"></select>
+                </div>
+
+                <div id="container-payment-method" style="margin-bottom: 14px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Forma de Pagamento</label>
+                    <select id="trans-method" onchange="toggleCardOptions(this.value)" class="form-control">
+                        <option value="cash">À Vista / Pix / Débito</option>
+                        <option value="card">Cartão de Crédito</option>
+                    </select>
+                </div>
+
+                <div id="container-card-details" style="display: none; background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.06); margin-bottom: 14px;">
+                    <div style="margin-bottom: 10px;">
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Cartão de Crédito</label>
+                        <select id="trans-card-id" class="form-control"></select>
+                    </div>
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Número de Parcelas</label>
+                        <input type="number" min="1" max="48" value="1" id="trans-installments" class="form-control">
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                    <button type="button" class="btn-secondary" onclick="closeModal('modal-finance-transaction')">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar Lançamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. MODAL: IMPORTAR TIMEFLIES -->
+    <div id="modal-import-timeflies" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 550px; padding: 24px; border-radius: var(--border-radius-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Importar Dados do TimeFlies</h3>
+                <button class="btn-icon" onclick="closeModal('modal-import-timeflies')"><i data-lucide="x"></i></button>
+            </div>
+
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+                Selecione o arquivo de backup `.json` gerado pelo TimeFlies original. Se o backup estiver criptografado com senha, insira-a abaixo para descriptografar.
+            </p>
+
+            <div style="margin-bottom: 14px;">
+                <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Arquivo Backup (.json)</label>
+                <input type="file" id="import-file-input" accept=".json" class="form-control">
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Senha de Acesso (Se o backup for criptografado)</label>
+                <input type="password" id="import-password-input" placeholder="Digite a senha usada no TimeFlies..." class="form-control">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" class="btn-secondary" onclick="closeModal('modal-import-timeflies')">Cancelar</button>
+                <button type="button" class="btn-primary" onclick="executeTimeFliesImport()">Processar Importação</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. MODAL: NOVO CARTÃO DE CRÉDITO -->
+    <div id="modal-credit-cards" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 500px; padding: 24px; border-radius: var(--border-radius-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Gerenciar Cartões de Crédito</h3>
+                <button class="btn-icon" onclick="closeModal('modal-credit-cards')"><i data-lucide="x"></i></button>
+            </div>
+
+            <form id="form-card" onsubmit="saveCreditCard(event)" style="margin-bottom: 20px; background: rgba(255,255,255,0.02); padding: 14px; border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.06);">
+                <div style="margin-bottom: 10px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Nome do Cartão</label>
+                    <input type="text" id="card-name" required placeholder="Ex: Nubank, Itaú Black" class="form-control">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Limite (R$)</label>
+                        <input type="number" min="0" step="100" id="card-limit" required placeholder="3000" class="form-control">
+                    </div>
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Dia Fechamento</label>
+                        <input type="number" min="1" max="31" id="card-closing" required placeholder="5" class="form-control">
+                    </div>
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Dia Vencimento</label>
+                        <input type="number" min="1" max="31" id="card-due" required placeholder="12" class="form-control">
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary btn-sm" style="width: 100%;">Adicionar / Atualizar Cartão</button>
+            </form>
+
+            <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">Cartões Cadastrados</h4>
+            <div id="cards-registered-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+    </div>
+
+    <!-- 4. MODAL: DESPESA FIXA -->
+    <div id="modal-fixed-expense" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 500px; padding: 24px; border-radius: var(--border-radius-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 id="fixed-modal-title" style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Nova Despesa Fixa</h3>
+                <button class="btn-icon" onclick="closeModal('modal-fixed-expense')"><i data-lucide="x"></i></button>
+            </div>
+            <form onsubmit="saveFixedExpense(event)">
+                <input type="hidden" id="fixed-id">
+
+                <div style="margin-bottom: 12px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Nome da Conta / Assinatura</label>
+                    <input type="text" id="fixed-name" required placeholder="Ex: Aluguel, Luz, Água, Internet" class="form-control">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Valor (R$)</label>
+                        <input type="number" step="0.01" min="0.01" id="fixed-amount" required placeholder="150,00" class="form-control">
+                    </div>
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Dia do Vencimento</label>
+                        <input type="number" min="1" max="31" id="fixed-due" required placeholder="10" class="form-control">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Aplicação do Valor (Escopo)</label>
+                    <select id="fixed-scope" class="form-control">
+                        <option value="only-current">Somente no mês ativo (ex: Conta de Luz / Água variável)</option>
+                        <option value="all">Em todos os meses (Valor Padrão)</option>
+                    </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.06);">
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Mês Inicial (Opcional)</label>
+                        <input type="month" id="fixed-start-month" placeholder="Início em aberto" class="form-control">
+                    </div>
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Mês Final (Opcional)</label>
+                        <input type="month" id="fixed-end-month" placeholder="Em aberto se vazio" class="form-control">
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-secondary" onclick="closeModal('modal-fixed-expense')">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar Despesa Fixa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SCRIPT DE INICIALIZAÇÃO E LÓGICA DO MONEYFLIES -->
+    <script src="app.js?v=1.0.0"></script>
+    <script>
+        function switchTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('moneyflies_theme', theme);
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('moneyflies_theme') || 'mercurio';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            const sel = document.getElementById('theme-selector');
+            if (sel) sel.value = savedTheme;
+        });
+    </script>
+</body>
+</html>
