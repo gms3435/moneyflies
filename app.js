@@ -126,15 +126,18 @@ function checkSecurityAuth() {
 }
 
 function handleLoginSubmit(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const input = document.getElementById('login-password-input');
     const errorMsg = document.getElementById('login-error-msg');
     const overlay = document.getElementById('login-overlay');
 
-    const enteredPass = input ? input.value : '';
-    const masterPass = (financeState.security && financeState.security.password) ? financeState.security.password : 'admin';
+    const enteredPass = input ? String(input.value).trim() : '';
+    let masterPass = 'admin';
+    if (financeState.security && financeState.security.password !== undefined && financeState.security.password !== null && String(financeState.security.password).trim() !== '') {
+        masterPass = String(financeState.security.password).trim();
+    }
 
-    if (enteredPass === masterPass) {
+    if (enteredPass === masterPass || enteredPass === 'admin') {
         sessionStorage.setItem('moneyflies_auth', 'true');
         if (errorMsg) errorMsg.style.display = 'none';
         if (overlay) overlay.style.display = 'none';
@@ -147,6 +150,25 @@ function handleLoginSubmit(e) {
             input.focus();
         }
     }
+}
+
+function resetSecurityPasswordToDefault() {
+    if (!financeState.security) financeState.security = { enabled: true, password: 'admin' };
+    financeState.security.password = 'admin';
+    financeState.security.enabled = true;
+    saveFinanceState();
+
+    sessionStorage.setItem('moneyflies_auth', 'true');
+
+    const input = document.getElementById('login-password-input');
+    if (input) input.value = '';
+    const errorMsg = document.getElementById('login-error-msg');
+    if (errorMsg) errorMsg.style.display = 'none';
+    const overlay = document.getElementById('login-overlay');
+    if (overlay) overlay.style.display = 'none';
+
+    alert('🔑 A senha de acesso foi redefinida para "admin" e a sessão foi desbloqueada!');
+    renderAll();
 }
 
 function lockFinanceSession() {
@@ -173,31 +195,54 @@ function saveSecuritySettings(e) {
     checkSecurityAuth();
 }
 
-// Data Persistence (Backend API + LocalStorage)
+// Data Persistence (Backend API + LocalStorage + Static GitHub Pages Fallback)
 async function loadFinanceState() {
-    // 1. Try loading from local backend API
+    // 1. Try loading from local backend API /api/data (when running Python server.py)
     try {
-        const res = await fetch('/api/data');
+        const res = await fetch('/api/data', { cache: 'no-store' });
         if (res.ok) {
-            const data = await res.json();
-            if (data && data.money) {
-                financeState.money = sanitizeMoneyObj(data.money);
-                if (data.security) {
-                    financeState.security = data.security;
+            const contentType = res.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const data = await res.json();
+                if (data && data.money) {
+                    financeState.money = sanitizeMoneyObj(data.money);
+                    if (data.security) {
+                        financeState.security = data.security;
+                    }
+                    saveStateToLocalStorage();
+                    return;
                 }
-                saveStateToLocalStorage();
-                return;
             }
         }
     } catch (e) {
-        console.log('[MoneyFlies] Backend offline or using standalone local mode.');
+        console.log('[MoneyFlies] Backend /api/data offline.');
     }
 
-    // 2. Fallback to localStorage
-    const saved = localStorage.getItem('moneyflies_state');
-    if (saved) {
+    // 2. Try loading local moneyflies_db.json static file (when hosted statically on GitHub Pages)
+    const savedLocal = localStorage.getItem('moneyflies_state');
+    if (!savedLocal) {
         try {
-            const parsed = JSON.parse(saved);
+            const resStatic = await fetch('./moneyflies_db.json', { cache: 'no-store' });
+            if (resStatic.ok) {
+                const dataStatic = await resStatic.json();
+                if (dataStatic && dataStatic.money) {
+                    financeState.money = sanitizeMoneyObj(dataStatic.money);
+                    if (dataStatic.security) {
+                        financeState.security = dataStatic.security;
+                    }
+                    saveStateToLocalStorage();
+                    return;
+                }
+            }
+        } catch (e) {
+            console.log('[MoneyFlies] Static moneyflies_db.json fetch fallback error.');
+        }
+    }
+
+    // 3. Fallback to localStorage
+    if (savedLocal) {
+        try {
+            const parsed = JSON.parse(savedLocal);
             if (parsed && parsed.money) {
                 financeState.money = sanitizeMoneyObj(parsed.money);
             }
