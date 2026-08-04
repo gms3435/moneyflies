@@ -108,20 +108,34 @@ function toggleFinanceVisibility() {
     });
 }
 
-// Password Security & Auth Handlers
+// Password Security & Auth Handlers (Segurança Obrigatória e Permanente)
 function checkSecurityAuth() {
     const overlay = document.getElementById('login-overlay');
     if (!overlay) return;
 
-    const isSecurityEnabled = financeState.security && financeState.security.enabled !== false;
     const isAuthed = sessionStorage.getItem('moneyflies_auth') === 'true';
 
-    if (isSecurityEnabled && !isAuthed) {
+    if (!isAuthed) {
         overlay.style.display = 'flex';
+        updateLoginOverlayUI();
         const input = document.getElementById('login-password-input');
         if (input) input.focus();
     } else {
         overlay.style.display = 'none';
+    }
+}
+
+function updateLoginOverlayUI() {
+    const hintEl = document.getElementById('login-hint-msg');
+    const sec = financeState.security || { password: null, isFirstAccess: true };
+    const hasPassword = sec.password !== null && sec.password !== undefined && String(sec.password).trim() !== '' && sec.isFirstAccess === false;
+
+    if (hintEl) {
+        if (!hasPassword) {
+            hintEl.innerHTML = '💡 <strong>Primeiro Acesso</strong>: Digite qualquer número/senha para registrar seu primeiro acesso.';
+        } else {
+            hintEl.innerHTML = '🔒 Digite sua senha de acesso cadastrada.';
+        }
     }
 }
 
@@ -132,19 +146,45 @@ function handleLoginSubmit(e) {
     const overlay = document.getElementById('login-overlay');
 
     const enteredPass = input ? String(input.value).trim() : '';
-    let masterPass = 'admin';
-    if (financeState.security && financeState.security.password !== undefined && financeState.security.password !== null && String(financeState.security.password).trim() !== '') {
-        masterPass = String(financeState.security.password).trim();
+    if (!enteredPass) return;
+
+    if (!financeState.security) {
+        financeState.security = { password: null, isFirstAccess: true };
     }
 
-    if (enteredPass === masterPass || enteredPass === 'admin') {
+    const sec = financeState.security;
+    const hasPassword = sec.password !== null && sec.password !== undefined && String(sec.password).trim() !== '' && sec.isFirstAccess === false;
+
+    // PRIMEIRO ACESSO: Qualquer número/senha digitado define a nova senha mestre!
+    if (!hasPassword) {
+        financeState.security = {
+            password: enteredPass,
+            isFirstAccess: false
+        };
+        saveFinanceState();
+        sessionStorage.setItem('moneyflies_auth', 'true');
+        if (errorMsg) errorMsg.style.display = 'none';
+        if (overlay) overlay.style.display = 'none';
+        if (input) input.value = '';
+        alert('🔐 Senha de acesso cadastrada com sucesso! A partir de agora, o acesso é exclusivo com esta senha.');
+        renderAll();
+        return;
+    }
+
+    // ACESSO REGULAR: A senha DEVE ser exatamente a senha cadastrada (SEM coringa admin)
+    const masterPass = String(sec.password).trim();
+
+    if (enteredPass === masterPass) {
         sessionStorage.setItem('moneyflies_auth', 'true');
         if (errorMsg) errorMsg.style.display = 'none';
         if (overlay) overlay.style.display = 'none';
         if (input) input.value = '';
         renderAll();
     } else {
-        if (errorMsg) errorMsg.style.display = 'block';
+        if (errorMsg) {
+            errorMsg.textContent = '⚠️ Senha incorreta. Tente novamente.';
+            errorMsg.style.display = 'block';
+        }
         if (input) {
             input.value = '';
             input.focus();
@@ -152,23 +192,27 @@ function handleLoginSubmit(e) {
     }
 }
 
-function resetSecurityPasswordToDefault() {
-    if (!financeState.security) financeState.security = { enabled: true, password: 'admin' };
-    financeState.security.password = 'admin';
-    financeState.security.enabled = true;
+function resetFinanceDataFromLogin() {
+    if (!confirm('ATENÇÃO: Deseja apagar todos os dados locais e redefinir o MoneyFlies para o Primeiro Acesso?')) return;
+    
+    localStorage.removeItem('moneyflies_state');
+    sessionStorage.removeItem('moneyflies_auth');
+
+    financeState.security = {
+        password: null,
+        isFirstAccess: true
+    };
+    financeState.money = sanitizeMoneyObj({});
+
     saveFinanceState();
-
-    sessionStorage.setItem('moneyflies_auth', 'true');
-
+    
     const input = document.getElementById('login-password-input');
     if (input) input.value = '';
     const errorMsg = document.getElementById('login-error-msg');
     if (errorMsg) errorMsg.style.display = 'none';
-    const overlay = document.getElementById('login-overlay');
-    if (overlay) overlay.style.display = 'none';
 
-    alert('🔑 A senha de acesso foi redefinida para "admin" e a sessão foi desbloqueada!');
-    renderAll();
+    updateLoginOverlayUI();
+    alert('✨ Dados redefinidos! Digite a senha desejada para registrar seu novo acesso.');
 }
 
 function lockFinanceSession() {
@@ -178,20 +222,23 @@ function lockFinanceSession() {
 
 function saveSecuritySettings(e) {
     e.preventDefault();
-    const chkEnable = document.getElementById('setting-security-enable');
     const inputNewPass = document.getElementById('setting-new-password');
+    const newPass = inputNewPass ? inputNewPass.value.trim() : '';
 
-    if (!financeState.security) financeState.security = { enabled: true, password: 'admin' };
-
-    financeState.security.enabled = chkEnable ? chkEnable.checked : true;
-
-    if (inputNewPass && inputNewPass.value.trim() !== '') {
-        financeState.security.password = inputNewPass.value.trim();
-        inputNewPass.value = '';
+    if (!newPass) {
+        alert('Por favor, digite a nova senha de acesso.');
+        return;
     }
 
+    financeState.security = {
+        password: newPass,
+        isFirstAccess: false
+    };
+
+    if (inputNewPass) inputNewPass.value = '';
+
     saveFinanceState();
-    alert('🔒 Configurações de segurança salvas com sucesso!');
+    alert('🔒 Nova senha de acesso salva com sucesso!');
     checkSecurityAuth();
 }
 

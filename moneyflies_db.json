@@ -2,8 +2,8 @@
   "version": "moneyflies-v1",
   "updatedAt": "2026-08-04T03:29:57.122Z",
   "security": {
-    "enabled": true,
-    "password": "030405"
+    "password": null,
+    "isFirstAccess": true
   },
   "money": {
     "expenses": [
