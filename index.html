@@ -890,7 +890,7 @@
             </div>
 
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
-                Selecione o arquivo de backup `.json` gerado pelo TimeFlies original. Se o backup estiver criptografado com senha, insira-a abaixo para descriptografar.
+                Selecione o arquivo de backup `.json` (MoneyFlies ou TimeFlies). Insira sua senha de acesso/descriptografia obrigatória para autorizar a restauração.
             </p>
 
             <div style="margin-bottom: 14px;">
@@ -899,8 +899,8 @@
             </div>
 
             <div style="margin-bottom: 16px;">
-                <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Senha de Acesso (Se o backup for criptografado)</label>
-                <input type="password" id="import-password-input" placeholder="Digite a senha usada no TimeFlies..." class="form-control">
+                <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Senha de Autorização / Descriptografia (Obrigatória)</label>
+                <input type="password" id="import-password-input" placeholder="Digite sua senha de acesso..." class="form-control" required>
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">

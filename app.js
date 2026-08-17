@@ -1834,33 +1834,57 @@ function executeTimeFliesImport() {
     const passwordInput = document.getElementById('import-password-input');
 
     if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        alert('Por favor, selecione um arquivo JSON exportado do TimeFlies.');
+        alert('Por favor, selecione um arquivo JSON de backup.');
         return;
     }
 
-    const file = fileInput.files[0];
-    const password = passwordInput ? passwordInput.value.trim() : '';
+    const enteredPassword = passwordInput ? String(passwordInput.value).trim() : '';
 
+    if (!enteredPassword) {
+        alert('🔒 Senha de Autorização Obrigatória: Por favor, digite sua senha de acesso/descriptografia para autorizar a importação.');
+        if (passwordInput) passwordInput.focus();
+        return;
+    }
+
+    const sec = financeState.security || {};
+    const currentMasterPass = String(sec.password || '').trim();
+
+    const file = fileInput.files[0];
     const reader = new FileReader();
+
     reader.onload = async function(e) {
         try {
             const rawContent = e.target.result;
             let json = JSON.parse(rawContent);
 
-            if (json.version === 'timeflies-v3-backup' && json.payload) {
-                if (!password) {
-                    alert('Este backup do TimeFlies está criptografado. Insira a senha usada no TimeFlies para importar.');
-                    return;
-                }
+            let isEncrypted = json.encrypted === true || 
+                              json.version === 'timeflies-v3-backup' || 
+                              json.version === 'moneyflies-v1-encrypted-backup' || 
+                              (typeof json.payload === 'string');
+
+            if (isEncrypted) {
                 try {
-                    const decryptedBytes = CryptoJS.AES.decrypt(json.payload, password);
+                    const decryptedBytes = CryptoJS.AES.decrypt(json.payload, enteredPassword);
                     const decryptedStr = decryptedBytes.toString(CryptoJS.enc.Utf8);
                     if (!decryptedStr) {
                         throw new Error('Senha incorreta.');
                     }
                     json = JSON.parse(decryptedStr);
                 } catch (err) {
-                    alert('Erro ao descriptografar: Senha incorreta ou arquivo corrompido.');
+                    alert('⚠️ Autenticação de Segurança Falhou: Senha de descriptografia incorreta ou arquivo de backup inválido.');
+                    if (passwordInput) {
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }
+                    return;
+                }
+            } else {
+                if (currentMasterPass && enteredPassword !== currentMasterPass) {
+                    alert('⚠️ Acesso Negado: A senha informada não coincide com a sua senha de acesso mestre do MoneyFlies.');
+                    if (passwordInput) {
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }
                     return;
                 }
             }
@@ -1879,23 +1903,30 @@ function executeTimeFliesImport() {
             }
 
             if (!extractedMoney) {
-                alert('Não foi possível localizar dados de finanças (módulo money) neste arquivo.');
+                alert('Não foi possível localizar dados financeiros válidos neste arquivo de backup.');
                 return;
             }
 
             financeState.money = sanitizeMoneyObj(extractedMoney);
+            
+            if (json.security && json.security.password) {
+                financeState.security = json.security;
+            }
+
             await saveFinanceState();
             
             const cardCount = (financeState.money.creditCards || []).length;
             const expCount = (financeState.money.expenses || []).length;
             const catCount = (financeState.money.categories || []).length;
-            alert(`🎉 Sucesso! Importados ${expCount} lançamentos, ${cardCount} cartão(ões) e ${catCount} categorias do backup do TimeFlies.`);
+            alert(`🎉 Importação Autorizada & Concluída! Restaurados ${expCount} lançamentos, ${cardCount} cartão(ões) e ${catCount} categorias com total segurança.`);
+            
+            if (passwordInput) passwordInput.value = '';
             closeModal('modal-import-timeflies');
             setupCategorySelects();
             renderAll();
 
         } catch (err) {
-            alert('Erro ao ler arquivo de backup: ' + err.message);
+            alert('Erro ao processar arquivo de backup: ' + err.message);
         }
     };
 
@@ -1903,18 +1934,35 @@ function executeTimeFliesImport() {
 }
 
 function exportMoneyFliesBackup() {
-    const payload = {
+    const sec = financeState.security || {};
+    const masterPassword = String(sec.password || '').trim();
+
+    if (!masterPassword) {
+        alert('⚠️ Cadastre uma senha de acesso nas configurações antes de exportar um backup criptografado.');
+        return;
+    }
+
+    const rawPayload = {
         version: 'moneyflies-v1-finance-export',
         exportedAt: new Date().toISOString(),
         security: financeState.security,
         money: financeState.money
     };
 
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
+    const encryptedString = CryptoJS.AES.encrypt(JSON.stringify(rawPayload), masterPassword).toString();
+
+    const encryptedContainer = {
+        version: 'moneyflies-v1-encrypted-backup',
+        exportedAt: new Date().toISOString(),
+        encrypted: true,
+        payload: encryptedString
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(encryptedContainer, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
     const dateStr = new Date().toISOString().substring(0, 10);
-    downloadAnchor.setAttribute("download", `moneyflies_finance_backup_${dateStr}.json`);
+    downloadAnchor.setAttribute("download", `moneyflies_finance_backup_secure_${dateStr}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
