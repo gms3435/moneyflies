@@ -731,16 +731,24 @@ function renderAll() {
     }
 }
 
-function renderDashboard() {
-    const targetMonth = financeState.currentMonth;
+function getAdjacentMonthStr(monthStr, delta) {
+    if (!monthStr) return '';
+    const [y, m] = monthStr.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    const resY = d.getFullYear();
+    const resM = String(d.getMonth() + 1).padStart(2, '0');
+    return `${resY}-${resM}`;
+}
+
+function getMonthFinancialTotals(monthStr) {
     const cards = financeState.money.creditCards || [];
     
-    const incomes = financeState.money.incomes.filter(i => (i.date || '').substring(0, 7) === targetMonth);
+    const incomes = (financeState.money.incomes || []).filter(i => (i.date || '').substring(0, 7) === monthStr);
     const totalIncome = incomes.reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
     
-    const cashExpenses = financeState.money.expenses.filter(e => 
+    const cashExpenses = (financeState.money.expenses || []).filter(e => 
         (e.method || e.paymentMethod || 'cash') !== 'card' && 
-        (e.date || '').substring(0, 7) === targetMonth
+        (e.date || '').substring(0, 7) === monthStr
     );
     const totalCash = cashExpenses.reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
 
@@ -748,19 +756,164 @@ function renderDashboard() {
     const allCardInvoiceExpenses = [];
     
     cards.forEach(card => {
-        const cardExpenses = getCardExpensesForInvoice(targetMonth, card.id);
+        const cardExpenses = getCardExpensesForInvoice(monthStr, card.id);
         const cardTotal = cardExpenses.reduce((acc, e) => acc + e.installmentAmount, 0);
         totalCardConsolidated += cardTotal;
         allCardInvoiceExpenses.push(...cardExpenses);
     });
 
     const fixedExpenses = (financeState.money.fixedExpenses || []).filter(f => 
-        f.method !== 'card' && isFixedExpenseActiveForMonth(f, targetMonth)
+        f.method !== 'card' && isFixedExpenseActiveForMonth(f, monthStr)
     );
-    const totalFixed = fixedExpenses.reduce((acc, cur) => acc + getFixedExpenseAmount(cur, targetMonth), 0);
+    const totalFixed = fixedExpenses.reduce((acc, cur) => acc + getFixedExpenseAmount(cur, monthStr), 0);
 
     const totalExpenses = totalCash + totalCardConsolidated + totalFixed;
-    const forecastBalance = totalIncome - totalExpenses;
+    const balance = totalIncome - totalExpenses;
+
+    return {
+        monthStr,
+        totalIncome,
+        totalCash,
+        totalCardConsolidated,
+        totalFixed,
+        totalExpenses,
+        balance,
+        cashExpenses,
+        allCardInvoiceExpenses
+    };
+}
+
+function renderTriMonthOverview(targetMonth) {
+    const prevMonthStr = getAdjacentMonthStr(targetMonth, -1);
+    const currMonthStr = targetMonth;
+    const nextMonthStr = getAdjacentMonthStr(targetMonth, 1);
+
+    const prevTotals = getMonthFinancialTotals(prevMonthStr);
+    const currTotals = getMonthFinancialTotals(currMonthStr);
+    const nextTotals = getMonthFinancialTotals(nextMonthStr);
+
+    const elPrevLabel = document.getElementById('tri-prev-label');
+    const elCurrLabel = document.getElementById('tri-curr-label');
+    const elNextLabel = document.getElementById('tri-next-label');
+
+    if (elPrevLabel) elPrevLabel.textContent = formatMonthBR(prevMonthStr);
+    if (elCurrLabel) elCurrLabel.textContent = `${formatMonthBR(currMonthStr)} (Atual)`;
+    if (elNextLabel) elNextLabel.textContent = formatMonthBR(nextMonthStr);
+
+    // Prev
+    const elPrevInc = document.getElementById('tri-prev-income');
+    const elPrevExp = document.getElementById('tri-prev-expenses');
+    const elPrevBal = document.getElementById('tri-prev-balance');
+
+    if (elPrevInc) elPrevInc.textContent = formatBRL(prevTotals.totalIncome);
+    if (elPrevExp) elPrevExp.textContent = formatBRL(prevTotals.totalExpenses);
+    if (elPrevBal) {
+        elPrevBal.textContent = formatBRL(prevTotals.balance);
+        elPrevBal.style.color = prevTotals.balance >= 0 ? 'var(--success, #10b981)' : 'var(--danger, #ef4444)';
+    }
+
+    // Curr
+    const elCurrInc = document.getElementById('tri-curr-income');
+    const elCurrExp = document.getElementById('tri-curr-expenses');
+    const elCurrBal = document.getElementById('tri-curr-balance');
+
+    if (elCurrInc) elCurrInc.textContent = formatBRL(currTotals.totalIncome);
+    if (elCurrExp) elCurrExp.textContent = formatBRL(currTotals.totalExpenses);
+    if (elCurrBal) {
+        elCurrBal.textContent = formatBRL(currTotals.balance);
+        elCurrBal.style.color = currTotals.balance >= 0 ? 'var(--success, #10b981)' : 'var(--danger, #ef4444)';
+    }
+
+    // Next
+    const elNextInc = document.getElementById('tri-next-income');
+    const elNextExp = document.getElementById('tri-next-expenses');
+    const elNextBal = document.getElementById('tri-next-balance');
+
+    if (elNextInc) elNextInc.textContent = formatBRL(nextTotals.totalIncome);
+    if (elNextExp) elNextExp.textContent = formatBRL(nextTotals.totalExpenses);
+    if (elNextBal) {
+        elNextBal.textContent = formatBRL(nextTotals.balance);
+        elNextBal.style.color = nextTotals.balance >= 0 ? 'var(--success, #10b981)' : 'var(--danger, #ef4444)';
+    }
+}
+
+function renderSemesterIndicators(targetMonth) {
+    const [y, m] = targetMonth.split('-').map(Number);
+    const isFirstSemester = m <= 6;
+    const startMonthNum = isFirstSemester ? 1 : 7;
+    const semesterName = isFirstSemester ? '1º Semestre' : '2º Semestre';
+
+    let semIncome = 0;
+    let semCashActual = 0;
+    let semCard = 0;
+    let semFixed = 0;
+
+    for (let i = 0; i < 6; i++) {
+        const monthNum = startMonthNum + i;
+        const monthStr = `${y}-${String(monthNum).padStart(2, '0')}`;
+        const totals = getMonthFinancialTotals(monthStr);
+
+        semIncome += totals.totalIncome;
+        semCashActual += totals.totalCash;
+        semCard += totals.totalCardConsolidated;
+        semFixed += totals.totalFixed;
+    }
+
+    // Cálculo da Projeção de Gastos À Vista baseada nos 2 meses anteriores ao atual
+    const m1Str = getAdjacentMonthStr(targetMonth, -1);
+    const m2Str = getAdjacentMonthStr(targetMonth, -2);
+    const cashM1 = getMonthFinancialTotals(m1Str).totalCash;
+    const cashM2 = getMonthFinancialTotals(m2Str).totalCash;
+
+    const projectedSemCash = ((cashM1 + cashM2) / 2) * 6;
+
+    // Total de gastos semestrais incluindo a projeção à vista
+    const semTotalExpenses = projectedSemCash + semCard + semFixed;
+    const semBalance = semIncome - semTotalExpenses;
+
+    const titleEl = document.getElementById('semester-panel-title');
+    const badgeEl = document.getElementById('semester-period-badge');
+
+    if (titleEl) titleEl.textContent = `Indicadores Consolidados (${semesterName} de ${y})`;
+    if (badgeEl) badgeEl.textContent = isFirstSemester ? `Jan - Jun / ${y}` : `Jul - Dez / ${y}`;
+
+    const elIncome = document.getElementById('sem-income-total');
+    const elCash = document.getElementById('sem-cash-total');
+    const elCashDesc = document.getElementById('sem-cash-desc');
+    const elCard = document.getElementById('sem-card-total');
+    const elFixed = document.getElementById('sem-fixed-total');
+    const elExp = document.getElementById('sem-expense-total');
+    const elBal = document.getElementById('sem-balance-total');
+    const elBalDesc = document.getElementById('sem-balance-desc');
+
+    if (elIncome) elIncome.textContent = formatBRL(semIncome);
+    if (elCash) elCash.textContent = formatBRL(projectedSemCash);
+    if (elCashDesc) elCashDesc.textContent = `Proj: (${formatMonthBR(m2Str)} + ${formatMonthBR(m1Str)})/2 \u00D7 6`;
+    if (elCard) elCard.textContent = formatBRL(semCard);
+    if (elFixed) elFixed.textContent = formatBRL(semFixed);
+    if (elExp) elExp.textContent = formatBRL(semTotalExpenses);
+
+    if (elBal) {
+        elBal.textContent = formatBRL(semBalance);
+        if (semBalance >= 0) {
+            elBal.style.color = 'var(--success, #10b981)';
+            if (elBalDesc) elBalDesc.innerHTML = `<span style="color: var(--success, #10b981); font-weight:700;">Superávit</span> semestral`;
+        } else {
+            elBal.style.color = 'var(--danger, #ef4444)';
+            if (elBalDesc) elBalDesc.innerHTML = `<span style="color: var(--danger, #ef4444); font-weight:700;">Déficit</span> semestral`;
+        }
+    }
+
+    return { semIncome, semCash: projectedSemCash, semCashActual, semCard, semFixed, semTotalExpenses, semBalance };
+}
+
+function renderDashboard() {
+    const targetMonth = financeState.currentMonth;
+    const cards = financeState.money.creditCards || [];
+
+    const currTotals = getMonthFinancialTotals(targetMonth);
+    const semData = renderSemesterIndicators(targetMonth);
+    renderTriMonthOverview(targetMonth);
 
     const elIncome = document.getElementById('dash-incomes-total');
     const elCash = document.getElementById('dash-cash-total');
@@ -769,24 +922,36 @@ function renderDashboard() {
     const elBalance = document.getElementById('dash-balance-total');
     const elBalanceDesc = document.getElementById('dash-balance-desc');
 
-    if (elIncome) elIncome.textContent = formatBRL(totalIncome);
-    if (elCash) elCash.textContent = formatBRL(totalCash);
-    if (elCard) elCard.textContent = formatBRL(totalCardConsolidated);
-    if (elFixed) elFixed.textContent = formatBRL(totalFixed);
+    if (elIncome) elIncome.textContent = formatBRL(currTotals.totalIncome);
+    if (elCash) elCash.textContent = formatBRL(currTotals.totalCash);
+    if (elCard) elCard.textContent = formatBRL(currTotals.totalCardConsolidated);
+    if (elFixed) elFixed.textContent = formatBRL(currTotals.totalFixed);
+
+    // Calculo das Médias À Vista
+    const [currY, currM] = targetMonth.split('-').map(Number);
+    const totalDaysInMonth = new Date(currY, currM, 0).getDate();
+    const dailyAvgCash = currTotals.totalCash / totalDaysInMonth;
+    const monthlyAvgCash = semData.semCash / 6;
+
+    const elDailyAvg = document.getElementById('dash-cash-daily-avg');
+    const elMonthlyAvg = document.getElementById('dash-cash-monthly-avg');
+
+    if (elDailyAvg) elDailyAvg.textContent = `${formatBRL(dailyAvgCash)}/dia`;
+    if (elMonthlyAvg) elMonthlyAvg.textContent = `${formatBRL(monthlyAvgCash)}/mês`;
 
     if (elBalance) {
-        elBalance.textContent = formatBRL(forecastBalance);
-        if (forecastBalance >= 0) {
+        elBalance.textContent = formatBRL(currTotals.balance);
+        if (currTotals.balance >= 0) {
             elBalance.style.color = 'var(--success, #10b981)';
             if (elBalanceDesc) elBalanceDesc.innerHTML = `<span style="color: var(--success, #10b981); font-weight:700;">Positivo!</span> Sobra projetada.`;
         } else {
             elBalance.style.color = 'var(--danger, #ef4444)';
-            if (elBalanceDesc) elBalanceDesc.innerHTML = `<span style="color: var(--danger, #ef4444); font-weight:700;">Alerta!</span> Déficit de ${formatBRL(Math.abs(forecastBalance))}.`;
+            if (elBalanceDesc) elBalanceDesc.innerHTML = `<span style="color: var(--danger, #ef4444); font-weight:700;">Alerta!</span> Déficit de ${formatBRL(Math.abs(currTotals.balance))}.`;
         }
     }
 
     renderCardLimitsDashboard(cards, targetMonth);
-    renderCategoryChart(cashExpenses, allCardInvoiceExpenses);
+    renderCategoryChart(currTotals.cashExpenses, currTotals.allCardInvoiceExpenses);
     renderHistoryChart();
 }
 
@@ -805,7 +970,7 @@ function renderCardLimitsDashboard(cards, targetMonth) {
         const cardFaturaTotal = cardInvoiceItems.reduce((acc, e) => acc + e.installmentAmount, 0);
 
         const isInvoicePaid = (card.history && card.history[targetMonth] === true) || (Array.isArray(card.paidMonths) && card.paidMonths.includes(targetMonth));
-        const paidBadge = isInvoicePaid ? '<span style="font-size:0.75rem; color:#10b981; font-weight:800;"> (✓ Paga)</span>' : '';
+        const paidBadge = isInvoicePaid ? '<span style="font-size:0.75rem; color:#10b981; font-weight:800;"> (\u2713 Paga)</span>' : '';
 
         const totalCommitted = getCardTotalCommittedBalance(card.id, targetMonth);
         const limit = Number(card.limit) || 3000;
@@ -837,32 +1002,78 @@ function renderCardLimitsDashboard(cards, targetMonth) {
     if (window.lucide) lucide.createIcons();
 }
 
+function renderCategoryChartFromFilter() {
+    const targetMonth = financeState.currentMonth;
+    const currTotals = getMonthFinancialTotals(targetMonth);
+    renderCategoryChart(currTotals.cashExpenses, currTotals.allCardInvoiceExpenses);
+    if (financeState.hideValues) {
+        document.querySelectorAll('.val-sensivel').forEach(el => el.classList.add('value-blur'));
+    }
+}
+
 function renderCategoryChart(monthExpenses, cardInvoiceExpenses) {
     const ctx = document.getElementById('chart-finance-categories');
     if (!ctx) return;
 
+    const filterVal = document.getElementById('dash-category-filter')?.value || 'ALL';
     const catTotals = {};
-    
-    monthExpenses.forEach(e => {
-        const cat = getCategoryLabel(e.category);
-        catTotals[cat] = (catTotals[cat] || 0) + (Number(e.amount) || 0);
-    });
 
-    if (Array.isArray(cardInvoiceExpenses)) {
-        cardInvoiceExpenses.forEach(e => {
+    if (filterVal === 'ALL' || filterVal === 'cash') {
+        (monthExpenses || []).forEach(e => {
             const cat = getCategoryLabel(e.category);
-            catTotals[cat] = (catTotals[cat] || 0) + (Number(e.installmentAmount) || 0);
+            catTotals[cat] = (catTotals[cat] || 0) + (Number(e.amount) || 0);
         });
     }
 
-    const labels = Object.keys(catTotals);
-    const data = Object.values(catTotals);
+    if (filterVal === 'ALL' || filterVal === 'card') {
+        if (Array.isArray(cardInvoiceExpenses)) {
+            cardInvoiceExpenses.forEach(e => {
+                const cat = getCategoryLabel(e.category);
+                catTotals[cat] = (catTotals[cat] || 0) + (Number(e.installmentAmount) || 0);
+            });
+        }
+    }
+
+    const sortedCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+    const labels = sortedCats.map(item => item[0]);
+    const data = sortedCats.map(item => item[1]);
+    const totalFilterSum = data.reduce((a, b) => a + b, 0);
+
+    // Renderizar Destaque Top 3
+    const top3ListEl = document.getElementById('dash-top3-list');
+    if (top3ListEl) {
+        top3ListEl.innerHTML = '';
+        if (sortedCats.length === 0 || totalFilterSum === 0) {
+            top3ListEl.innerHTML = '<div style="font-size:0.75rem; color:var(--text-muted); font-style:italic;">Nenhum gasto registrado para esta seleção.</div>';
+        } else {
+            const top3 = sortedCats.slice(0, 3);
+            const medals = ['🥇 1º', '🥈 2º', '🥉 3º'];
+            const badgeColors = ['#f59e0b', '#94a3b8', '#d97706'];
+
+            top3.forEach(([catName, amount], index) => {
+                const pct = totalFilterSum > 0 ? Math.round((amount / totalFilterSum) * 100) : 0;
+                const row = document.createElement('div');
+                row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem;';
+                row.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 0.85rem;">${medals[index]}</span>
+                        <span style="font-weight: 700; color: var(--text-main);">${catName}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="color: var(--text-muted); font-size: 0.72rem; font-weight: 600;">${pct}% do total</span>
+                        <strong class="val-sensivel" style="color: ${badgeColors[index]}; font-weight: 800;">${formatBRL(amount)}</strong>
+                    </div>
+                `;
+                top3ListEl.appendChild(row);
+            });
+        }
+    }
 
     if (chartCategoriesInstance) {
         chartCategoriesInstance.destroy();
     }
 
-    if (labels.length === 0) {
+    if (labels.length === 0 || totalFilterSum === 0) {
         ctx.style.display = 'none';
         return;
     }
@@ -903,42 +1114,23 @@ function renderHistoryChart() {
     const startMonth = currM <= 6 ? 1 : 7;
 
     const labels = [];
-    const incomeData = [];
-    const expenseData = [];
+    const cashData = [];
+    const cardData = [];
+    const fixedData = [];
     const balanceData = [];
 
     for (let i = 0; i < 6; i++) {
-        const projDate = new Date(currY, (startMonth - 1) + i, 1);
-        const mY = projDate.getFullYear();
-        const mM = String(projDate.getMonth() + 1).padStart(2, '0');
-        const monthStr = `${mY}-${mM}`;
+        const monthNum = startMonth + i;
+        const monthStr = `${currY}-${String(monthNum).padStart(2, '0')}`;
         
-        labels.push(`${months[projDate.getMonth()]}/${String(mY).substring(2)}`);
+        labels.push(`${months[monthNum - 1]}/${String(currY).substring(2)}`);
 
-        const inc = financeState.money.incomes
-            .filter(i => (i.date || '').substring(0, 7) === monthStr)
-            .reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
+        const totals = getMonthFinancialTotals(monthStr);
 
-        const expCash = financeState.money.expenses
-            .filter(e => (e.method || e.paymentMethod || 'cash') !== 'card' && (e.date || '').substring(0, 7) === monthStr)
-            .reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
-
-        let expCard = 0;
-        (financeState.money.creditCards || []).forEach(card => {
-            const cardItems = getCardExpensesForInvoice(monthStr, card.id);
-            expCard += cardItems.reduce((acc, e) => acc + e.installmentAmount, 0);
-        });
-
-        const expFixed = (financeState.money.fixedExpenses || [])
-            .filter(f => f.method !== 'card' && isFixedExpenseActiveForMonth(f, monthStr))
-            .reduce((acc, cur) => acc + getFixedExpenseAmount(cur, monthStr), 0);
-
-        const totalMonthExpenses = expCash + expCard + expFixed;
-        const netMonthBalance = inc - totalMonthExpenses;
-
-        incomeData.push(inc);
-        expenseData.push(totalMonthExpenses);
-        balanceData.push(netMonthBalance);
+        cashData.push(totals.totalCash);
+        cardData.push(totals.totalCardConsolidated);
+        fixedData.push(totals.totalFixed);
+        balanceData.push(totals.balance);
     }
 
     const titleEl = document.getElementById('chart-semester-title');
@@ -952,29 +1144,45 @@ function renderHistoryChart() {
     }
 
     chartHistoryInstance = new Chart(ctx, {
+        type: 'line',
         data: {
             labels: labels,
             datasets: [
                 {
-                    type: 'bar',
-                    label: 'Entradas',
-                    data: incomeData,
-                    backgroundColor: '#10b981',
-                    borderRadius: 4
+                    label: 'À Vista',
+                    data: cashData,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    fill: false,
+                    tension: 0.3
                 },
                 {
-                    type: 'bar',
-                    label: 'Saídas (Totais)',
-                    data: expenseData,
-                    backgroundColor: '#ef4444',
-                    borderRadius: 4
+                    label: 'Crédito',
+                    data: cardData,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    fill: false,
+                    tension: 0.3
                 },
                 {
-                    type: 'line',
+                    label: 'Despesas Fixas',
+                    data: fixedData,
+                    borderColor: '#8b5cf6',
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    fill: false,
+                    tension: 0.3
+                },
+                {
                     label: 'Saldo Líquido',
                     data: balanceData,
                     borderColor: '#60a5fa',
-                    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                    backgroundColor: 'rgba(96, 165, 250, 0.15)',
                     borderWidth: 3,
                     pointRadius: 4,
                     fill: false,
@@ -990,7 +1198,7 @@ function renderHistoryChart() {
                 y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
             },
             plugins: {
-                legend: { labels: { color: '#94a3b8' } }
+                legend: { labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 11 } } }
             }
         }
     });
