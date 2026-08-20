@@ -1938,6 +1938,11 @@ function executeTimeFliesImport() {
 
             financeState.money = sanitizeMoneyObj(extractedMoney);
             
+            let extractedCrypto = json.cryptoFutures || (json.payload && json.payload.cryptoFutures) || null;
+            if (extractedCrypto) {
+                financeState.cryptoFutures = extractedCrypto;
+            }
+
             if (json.security && json.security.password) {
                 financeState.security = json.security;
             }
@@ -1947,7 +1952,9 @@ function executeTimeFliesImport() {
             const cardCount = (financeState.money.creditCards || []).length;
             const expCount = (financeState.money.expenses || []).length;
             const catCount = (financeState.money.categories || []).length;
-            alert(`🎉 Importação Autorizada & Concluída! Restaurados ${expCount} lançamentos, ${cardCount} cartão(ões) e ${catCount} categorias com total segurança.`);
+            const cryptoTradesCount = (financeState.cryptoFutures && Array.isArray(financeState.cryptoFutures.history)) ? financeState.cryptoFutures.history.length : 0;
+
+            alert(`🎉 Importação Autorizada & Concluída! Restaurados ${expCount} lançamentos, ${cardCount} cartão(ões), ${catCount} categorias e ${cryptoTradesCount} item(ns) de Cripto Futuros com total segurança.`);
             
             if (passwordInput) passwordInput.value = '';
             closeModal('modal-import-timeflies');
@@ -1975,7 +1982,8 @@ function exportMoneyFliesBackup() {
         version: 'moneyflies-v1-finance-export',
         exportedAt: new Date().toISOString(),
         security: financeState.security,
-        money: financeState.money
+        money: financeState.money,
+        cryptoFutures: financeState.cryptoFutures
     };
 
     const encryptedString = CryptoJS.AES.encrypt(JSON.stringify(rawPayload), masterPassword).toString();
@@ -2497,6 +2505,8 @@ function saveCryptoConfig(e) {
 
 function openCryptoImportCSVModal() {
     const modal = document.getElementById('modal-crypto-import-csv');
+    const input = document.getElementById('crypto-csv-file-input');
+    if (input) input.value = '';
     if (modal) modal.style.display = 'flex';
 }
 
