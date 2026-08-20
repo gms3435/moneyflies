@@ -41,6 +41,12 @@ DEFAULT_FINANCE_STATE = {
             }
         ],
         "categories": ["Alimentação", "Mercado", "Moradia", "Transporte", "Saúde", "Lazer", "Ensino", "Assinaturas", "Outros"]
+    },
+    "cryptoFutures": {
+        "initialBalance": 60.0,
+        "currency": "BRL",
+        "activeTrade": None,
+        "history": []
     }
 }
 
@@ -48,7 +54,15 @@ def load_db():
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                if "cryptoFutures" not in data:
+                    data["cryptoFutures"] = {
+                        "initialBalance": 60.0,
+                        "currency": "BRL",
+                        "activeTrade": None,
+                        "history": []
+                    }
+                return data
         except Exception as e:
             print(f"[MoneyFlies] Erro ao ler {DB_FILE}: {e}")
     return DEFAULT_FINANCE_STATE

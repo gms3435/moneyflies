@@ -4136,5 +4136,12 @@
       "Obra",
       "salario"
     ]
+  },
+  "cryptoFutures": {
+    "initialBalance": 60.0,
+    "usdtRate": 5.1,
+    "currency": "BRL",
+    "activeTrade": null,
+    "history": []
   }
 }

@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initMonthPicker();
     await loadFinanceState();
     setupCategorySelects();
-    checkSecurityAuth();
+    checkSecurityAuth(true);
     renderAll();
     
     if (window.lucide) {
@@ -109,9 +109,17 @@ function toggleFinanceVisibility() {
 }
 
 // Password Security & Auth Handlers (Segurança Obrigatória e Permanente)
-function checkSecurityAuth() {
+function checkSecurityAuth(forcePromptOnLoad = false) {
     const overlay = document.getElementById('login-overlay');
     if (!overlay) return;
+
+    const sec = financeState.security || { password: null, isFirstAccess: true };
+    const hasPassword = sec.password !== null && sec.password !== undefined && String(sec.password).trim() !== '' && sec.isFirstAccess === false;
+
+    // Se possui senha cadastrada e foi um carregamento/atualização de página, exige a senha sempre!
+    if (forcePromptOnLoad && hasPassword) {
+        sessionStorage.removeItem('moneyflies_auth');
+    }
 
     const isAuthed = sessionStorage.getItem('moneyflies_auth') === 'true';
 
@@ -244,6 +252,20 @@ function saveSecuritySettings(e) {
 
 // Data Persistence (Backend API + LocalStorage + Static GitHub Pages Fallback)
 async function loadFinanceState() {
+    // Helper to ensure cryptoFutures default shape
+    const ensureCryptoShape = (data) => {
+        if (data && data.cryptoFutures) {
+            financeState.cryptoFutures = data.cryptoFutures;
+        } else if (!financeState.cryptoFutures) {
+            financeState.cryptoFutures = {
+                initialBalance: 60.0,
+                currency: 'BRL',
+                activeTrade: null,
+                history: []
+            };
+        }
+    };
+
     // 1. Try loading from local backend API /api/data (when running Python server.py)
     try {
         const res = await fetch('/api/data', { cache: 'no-store' });
@@ -256,6 +278,7 @@ async function loadFinanceState() {
                     if (data.security) {
                         financeState.security = data.security;
                     }
+                    ensureCryptoShape(data);
                     saveStateToLocalStorage();
                     return;
                 }
@@ -277,6 +300,7 @@ async function loadFinanceState() {
                     if (dataStatic.security) {
                         financeState.security = dataStatic.security;
                     }
+                    ensureCryptoShape(dataStatic);
                     saveStateToLocalStorage();
                     return;
                 }
@@ -296,10 +320,12 @@ async function loadFinanceState() {
             if (parsed && parsed.security) {
                 financeState.security = parsed.security;
             }
+            ensureCryptoShape(parsed);
         } catch (e) {
             console.error('[MoneyFlies] Erro ao carregar localStorage:', e);
         }
     }
+    ensureCryptoShape(null);
 }
 
 async function saveFinanceState() {
@@ -314,7 +340,8 @@ async function saveFinanceState() {
                 version: 'moneyflies-v1',
                 updatedAt: new Date().toISOString(),
                 security: financeState.security,
-                money: financeState.money
+                money: financeState.money,
+                cryptoFutures: financeState.cryptoFutures
             })
         });
     } catch (e) {
@@ -326,7 +353,8 @@ function saveStateToLocalStorage() {
     localStorage.setItem('moneyflies_state', JSON.stringify({
         updatedAt: new Date().toISOString(),
         security: financeState.security,
-        money: financeState.money
+        money: financeState.money,
+        cryptoFutures: financeState.cryptoFutures
     }));
 }
 
@@ -725,6 +753,7 @@ function renderAll() {
     renderCreditCardView();
     renderIncomesTable();
     renderFixedExpensesTable();
+    renderCryptoModule();
     
     if (financeState.hideValues) {
         document.querySelectorAll('.val-sensivel').forEach(el => el.classList.add('value-blur'));
@@ -1976,4 +2005,912 @@ function resetMoneyFliesData() {
     saveFinanceState();
     renderAll();
     alert('Dados de finanças resetados.');
+}
+
+/* ==========================================================================
+   MODULE: CRIPTO FUTUROS (BTC) - TRADING JOURNAL, EQUITY CURVE & CSV PARSER
+   ========================================================================== */
+
+let cryptoTimeframe = '3M';
+let cryptoEquityChartInstance = null;
+
+function renderCryptoModule() {
+    if (!financeState.cryptoFutures) {
+        financeState.cryptoFutures = {
+            initialBalance: 60.0,
+            currency: 'BRL',
+            activeTrade: null,
+            history: []
+        };
+    }
+
+    const cryptoData = financeState.cryptoFutures;
+    const initialBal = Number(cryptoData.initialBalance) || 60.0;
+    const history = Array.isArray(cryptoData.history) ? cryptoData.history : [];
+
+    // Calculate totals
+    let totalPnl = 0;
+    let totalDeposits = 0;
+    let totalWithdraws = 0;
+    let winCount = 0;
+    let lossCount = 0;
+    let tradeCount = 0;
+
+    history.forEach(item => {
+        if (item.type === 'DEPOSIT') {
+            totalDeposits += Number(item.amount) || 0;
+        } else if (item.type === 'WITHDRAW') {
+            totalWithdraws += Number(item.amount) || 0;
+        } else if (item.type === 'TRADE' || !item.type) {
+            tradeCount++;
+            const pnl = Number(item.pnl) || 0;
+            totalPnl += pnl;
+            if (pnl > 0) winCount++;
+            else if (pnl < 0) lossCount++;
+        }
+    });
+
+    const currentBalance = initialBal + totalDeposits - totalWithdraws + totalPnl;
+    const pnlPercent = initialBal > 0 ? (totalPnl / initialBal) * 100 : 0;
+    const winRate = tradeCount > 0 ? ((winCount / tradeCount) * 100).toFixed(1) : '--';
+
+    // Update UI Header Cards
+    const elBal = document.getElementById('crypto-total-balance');
+    const elInitDesc = document.getElementById('crypto-initial-balance-desc');
+    const elPnl = document.getElementById('crypto-total-pnl');
+    const elPnlPercent = document.getElementById('crypto-pnl-percent');
+    const elWinRate = document.getElementById('crypto-win-rate');
+    const elTradesCount = document.getElementById('crypto-trades-count');
+    const elDepWith = document.getElementById('crypto-deposits-withdraws');
+
+    if (elBal) elBal.textContent = formatBRL(currentBalance);
+    if (elInitDesc) elInitDesc.textContent = `Banca Inicial: ${formatBRL(initialBal)}`;
+    if (elPnl) {
+        elPnl.textContent = `${totalPnl >= 0 ? '+' : ''}${formatBRL(totalPnl)}`;
+        elPnl.style.color = totalPnl >= 0 ? 'var(--success, #10b981)' : 'var(--danger, #ef4444)';
+    }
+    if (elPnlPercent) {
+        elPnlPercent.textContent = `${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% sobre a banca`;
+        elPnlPercent.style.color = pnlPercent >= 0 ? 'var(--success, #10b981)' : 'var(--danger, #ef4444)';
+    }
+    if (elWinRate) elWinRate.textContent = winRate !== '--' ? `${winRate}%` : '-- %';
+    if (elTradesCount) elTradesCount.textContent = `${tradeCount} trade(s) (${winCount}V / ${lossCount}D)`;
+    if (elDepWith) elDepWith.textContent = `${formatBRL(totalDeposits)} / ${formatBRL(totalWithdraws)}`;
+
+    // Render active trade & history table & chart
+    renderCryptoActiveTradeUI();
+    renderCryptoHistoryTable();
+    renderCryptoEquityChart();
+}
+
+function renderCryptoActiveTradeUI() {
+    const container = document.getElementById('crypto-active-trade-container');
+    const badge = document.getElementById('crypto-active-status-badge');
+    if (!container) return;
+
+    const activeTrade = financeState.cryptoFutures ? financeState.cryptoFutures.activeTrade : null;
+
+    if (!activeTrade) {
+        if (badge) {
+            badge.textContent = 'Sem Posição Ativa';
+            badge.style.background = 'rgba(148, 163, 184, 0.15)';
+            badge.style.color = '#94a3b8';
+            badge.style.borderColor = 'rgba(148, 163, 184, 0.3)';
+        }
+
+        container.innerHTML = `
+            <div style="text-align: center; padding: 24px 16px; border: 1px dashed rgba(255,255,255,0.1); border-radius: var(--border-radius-md); background: rgba(255,255,255,0.01);">
+                <i data-lucide="shield-check" style="width: 32px; height: 32px; color: var(--text-muted); margin-bottom: 8px;"></i>
+                <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 14px;">Você não possui nenhuma operação aberta em Bitcoin no momento.</p>
+                <button class="btn-primary" onclick="openCryptoTradeModal()" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Registrar Operação em Andamento (BTC)
+                </button>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    // Active trade exists!
+    const isLong = activeTrade.direction === 'LONG';
+    if (badge) {
+        badge.textContent = `POSIÇÃO ATIVA (${activeTrade.direction})`;
+        badge.style.background = isLong ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+        badge.style.color = isLong ? '#10b981' : '#ef4444';
+        badge.style.borderColor = isLong ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+    }
+
+    const margin = Number(activeTrade.margin) || 0;
+    const lev = Number(activeTrade.leverage) || 1;
+    const entry = Number(activeTrade.entryPrice) || 0;
+    const sl = Number(activeTrade.stopLoss) || 0;
+    const tp = Number(activeTrade.takeProfit) || 0;
+
+    // R:R calculation
+    let rrRatioStr = '--';
+    let pnlAtSLStr = '--';
+    let pnlAtTPStr = '--';
+
+    if (entry > 0 && sl > 0 && tp > 0) {
+        const riskPerCoin = isLong ? (entry - sl) : (sl - entry);
+        const rewardPerCoin = isLong ? (tp - entry) : (entry - tp);
+        if (riskPerCoin > 0) {
+            const rr = rewardPerCoin / riskPerCoin;
+            rrRatioStr = `1 : ${rr.toFixed(2)}`;
+            const pnlAtSL = margin * lev * (-riskPerCoin / entry);
+            const pnlAtTP = margin * lev * (rewardPerCoin / entry);
+            pnlAtSLStr = formatBRL(pnlAtSL);
+            pnlAtTPStr = `+${formatBRL(pnlAtTP)}`;
+        }
+    }
+
+    container.innerHTML = `
+        <div style="background: rgba(255,255,255,0.025); border: 1px solid ${isLong ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}; border-radius: var(--border-radius-md); padding: 18px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">BTCUSDT</span>
+                    <span style="font-size: 0.8rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: ${isLong ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}; color: ${isLong ? '#10b981' : '#ef4444'};">
+                        ${isLong ? '🟢 LONG' : '🔴 SHORT'} ${lev}x
+                    </span>
+                </div>
+                <button class="btn-primary" onclick="openCryptoCloseTradeModal()" style="background: #10b981 !important; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="check-circle-2" style="width: 16px; height: 16px;"></i> Encerrar Operação
+                </button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: 14px;">
+                <div>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Margem Alocada</span>
+                    <strong style="font-size: 0.95rem; color: var(--text-main);">${formatBRL(margin)}</strong>
+                </div>
+                <div>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Preço de Entrada</span>
+                    <strong style="font-size: 0.95rem; color: var(--text-main);">$ ${entry.toLocaleString('en-US', {minimumFractionDigits: 2})}</strong>
+                </div>
+                <div>
+                    <span style="font-size: 0.75rem; color: #ef4444; display: block;">Stop Loss</span>
+                    <strong style="font-size: 0.95rem; color: #ef4444;">${sl > 0 ? '$ ' + sl.toLocaleString('en-US', {minimumFractionDigits: 2}) : '--'}</strong>
+                    <small style="display: block; font-size: 0.7rem; color: #ef4444;">${pnlAtSLStr}</small>
+                </div>
+                <div>
+                    <span style="font-size: 0.75rem; color: #10b981; display: block;">Take Profit</span>
+                    <strong style="font-size: 0.95rem; color: #10b981;">${tp > 0 ? '$ ' + tp.toLocaleString('en-US', {minimumFractionDigits: 2}) : '--'}</strong>
+                    <small style="display: block; font-size: 0.7rem; color: #10b981;">${pnlAtTPStr}</small>
+                </div>
+                <div>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Risco / Retorno</span>
+                    <strong style="font-size: 0.95rem; color: #f7931a;">${rrRatioStr}</strong>
+                </div>
+            </div>
+        </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+}
+
+function openCryptoTradeModal() {
+    const modal = document.getElementById('modal-crypto-trade');
+    if (!modal) return;
+    document.getElementById('crypto-trade-margin').value = '50.00';
+    document.getElementById('crypto-trade-leverage').value = '20';
+    document.getElementById('crypto-trade-entry').value = '';
+    document.getElementById('crypto-trade-sl').value = '';
+    document.getElementById('crypto-trade-tp').value = '';
+    toggleCryptoDirectionUI('LONG');
+    modal.style.display = 'flex';
+}
+
+function toggleCryptoDirectionUI(dir) {
+    const longLbl = document.getElementById('crypto-direction-long-label');
+    const shortLbl = document.getElementById('crypto-direction-short-label');
+    if (!longLbl || !shortLbl) return;
+
+    if (dir === 'LONG') {
+        longLbl.style.background = 'rgba(16, 185, 129, 0.15)';
+        longLbl.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+        longLbl.style.color = '#10b981';
+
+        shortLbl.style.background = 'transparent';
+        shortLbl.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+        shortLbl.style.color = 'var(--text-muted)';
+    } else {
+        shortLbl.style.background = 'rgba(239, 68, 68, 0.15)';
+        shortLbl.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+        shortLbl.style.color = '#ef4444';
+
+        longLbl.style.background = 'transparent';
+        longLbl.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+        longLbl.style.color = 'var(--text-muted)';
+    }
+}
+
+function saveCryptoTrade(e) {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const dirElem = document.querySelector('input[name="cryptoDirection"]:checked');
+    const direction = dirElem ? dirElem.value : 'LONG';
+    const margin = parseFloat(document.getElementById('crypto-trade-margin').value) || 0;
+    const leverage = parseInt(document.getElementById('crypto-trade-leverage').value, 10) || 1;
+    const entryPrice = parseFloat(document.getElementById('crypto-trade-entry').value) || 0;
+    const stopLoss = parseFloat(document.getElementById('crypto-trade-sl').value) || 0;
+    const takeProfit = parseFloat(document.getElementById('crypto-trade-tp').value) || 0;
+
+    if (margin <= 0 || entryPrice <= 0) {
+        alert('Por favor, informe valores válidos para a Margem e Preço de Entrada.');
+        return;
+    }
+
+    financeState.cryptoFutures.activeTrade = {
+        id: 'trade_' + Date.now(),
+        pair: 'BTCUSDT',
+        direction: direction,
+        margin: margin,
+        leverage: leverage,
+        entryPrice: entryPrice,
+        stopLoss: stopLoss,
+        takeProfit: takeProfit,
+        openTime: new Date().toISOString()
+    };
+
+    saveFinanceState();
+    closeModal('modal-crypto-trade');
+    renderCryptoModule();
+}
+
+function openCryptoCloseTradeModal() {
+    const active = financeState.cryptoFutures ? financeState.cryptoFutures.activeTrade : null;
+    if (!active) return;
+
+    const modal = document.getElementById('modal-crypto-close-trade');
+    const summary = document.getElementById('close-trade-summary');
+    const inputClose = document.getElementById('crypto-close-price');
+    if (!modal || !summary) return;
+
+    summary.innerHTML = `
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
+            <span>Par / Direção: <strong>BTCUSDT (${active.direction}) ${active.leverage}x</strong></span>
+            <span>Margem: <strong>${formatBRL(active.margin)}</strong></span>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-muted);">
+            Entrada: $ ${active.entryPrice.toLocaleString('en-US')}
+        </div>
+    `;
+
+    if (inputClose) {
+        inputClose.value = active.takeProfit > 0 ? active.takeProfit : active.entryPrice;
+    }
+
+    calculateCryptoClosePnL();
+    modal.style.display = 'flex';
+}
+
+function calculateCryptoClosePnL() {
+    const active = financeState.cryptoFutures ? financeState.cryptoFutures.activeTrade : null;
+    const pnlDisplay = document.getElementById('crypto-calculated-pnl');
+    const inputClose = document.getElementById('crypto-close-price');
+    if (!active || !pnlDisplay || !inputClose) return;
+
+    const closePrice = parseFloat(inputClose.value) || 0;
+    if (closePrice <= 0) {
+        pnlDisplay.textContent = 'R$ 0,00';
+        return;
+    }
+
+    const margin = Number(active.margin) || 0;
+    const lev = Number(active.leverage) || 1;
+    const entry = Number(active.entryPrice) || 0;
+
+    let pnlRatio = 0;
+    if (active.direction === 'LONG') {
+        pnlRatio = (closePrice - entry) / entry;
+    } else {
+        pnlRatio = (entry - closePrice) / entry;
+    }
+
+    const pnlVal = margin * lev * pnlRatio;
+    pnlDisplay.textContent = `${pnlVal >= 0 ? '+' : ''}${formatBRL(pnlVal)}`;
+    pnlDisplay.style.color = pnlVal >= 0 ? 'var(--success, #10b981)' : 'var(--danger, #ef4444)';
+}
+
+function executeCloseCryptoTrade(e) {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const active = financeState.cryptoFutures ? financeState.cryptoFutures.activeTrade : null;
+    const inputClose = document.getElementById('crypto-close-price');
+    if (!active || !inputClose) return;
+
+    const closePrice = parseFloat(inputClose.value) || 0;
+    if (closePrice <= 0) {
+        alert('Informe o preço de saída.');
+        return;
+    }
+
+    const margin = Number(active.margin) || 0;
+    const lev = Number(active.leverage) || 1;
+    const entry = Number(active.entryPrice) || 0;
+
+    let pnlRatio = active.direction === 'LONG' ? (closePrice - entry) / entry : (entry - closePrice) / entry;
+    const pnlVal = margin * lev * pnlRatio;
+
+    const closedItem = {
+        id: 'tr_' + Date.now(),
+        type: 'TRADE',
+        pair: 'BTCUSDT',
+        direction: active.direction,
+        margin: margin,
+        leverage: lev,
+        entryPrice: entry,
+        closePrice: closePrice,
+        pnl: pnlVal,
+        closeTime: new Date().toISOString()
+    };
+
+    if (!Array.isArray(financeState.cryptoFutures.history)) {
+        financeState.cryptoFutures.history = [];
+    }
+
+    financeState.cryptoFutures.history.push(closedItem);
+    financeState.cryptoFutures.activeTrade = null;
+
+    saveFinanceState();
+    closeModal('modal-crypto-close-trade');
+    renderCryptoModule();
+}
+
+function openCryptoDepositModal() {
+    const modal = document.getElementById('modal-crypto-deposit');
+    if (!modal) return;
+    document.getElementById('crypto-deposit-amount').value = '';
+    document.getElementById('crypto-deposit-date').value = new Date().toISOString().substring(0, 10);
+    modal.style.display = 'flex';
+}
+
+function executeCryptoDeposit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const amount = parseFloat(document.getElementById('crypto-deposit-amount').value) || 0;
+    const date = document.getElementById('crypto-deposit-date').value || new Date().toISOString().substring(0, 10);
+    const sync = document.getElementById('crypto-deposit-sync').checked;
+
+    if (amount <= 0) {
+        alert('Informe um valor válido.');
+        return;
+    }
+
+    const depItem = {
+        id: 'dep_' + Date.now(),
+        type: 'DEPOSIT',
+        amount: amount,
+        date: date,
+        note: 'Aporte Corretora'
+    };
+
+    if (!Array.isArray(financeState.cryptoFutures.history)) {
+        financeState.cryptoFutures.history = [];
+    }
+    financeState.cryptoFutures.history.push(depItem);
+
+    if (sync) {
+        if (!Array.isArray(financeState.money.expenses)) financeState.money.expenses = [];
+        financeState.money.expenses.push({
+            id: 'exp_' + Date.now(),
+            date: date,
+            amount: amount,
+            desc: 'Aporte Cripto Futuros',
+            description: 'Aporte Cripto Futuros',
+            category: 'Outros',
+            method: 'cash',
+            paymentMethod: 'cash'
+        });
+    }
+
+    saveFinanceState();
+    closeModal('modal-crypto-deposit');
+    renderCryptoModule();
+}
+
+function openCryptoWithdrawModal() {
+    const modal = document.getElementById('modal-crypto-withdraw');
+    if (!modal) return;
+    document.getElementById('crypto-withdraw-amount').value = '';
+    document.getElementById('crypto-withdraw-date').value = new Date().toISOString().substring(0, 10);
+    modal.style.display = 'flex';
+}
+
+function executeCryptoWithdraw(e) {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const amount = parseFloat(document.getElementById('crypto-withdraw-amount').value) || 0;
+    const date = document.getElementById('crypto-withdraw-date').value || new Date().toISOString().substring(0, 10);
+    const sync = document.getElementById('crypto-withdraw-sync').checked;
+
+    if (amount <= 0) {
+        alert('Informe um valor válido.');
+        return;
+    }
+
+    const withItem = {
+        id: 'with_' + Date.now(),
+        type: 'WITHDRAW',
+        amount: amount,
+        date: date,
+        note: 'Retirada de Lucro'
+    };
+
+    if (!Array.isArray(financeState.cryptoFutures.history)) {
+        financeState.cryptoFutures.history = [];
+    }
+    financeState.cryptoFutures.history.push(withItem);
+
+    if (sync) {
+        if (!Array.isArray(financeState.money.incomes)) financeState.money.incomes = [];
+        financeState.money.incomes.push({
+            id: 'inc_' + Date.now(),
+            date: date,
+            amount: amount,
+            desc: 'Lucro Cripto Futuros',
+            description: 'Lucro Cripto Futuros',
+            source: 'Lucro Cripto Futuros',
+            category: 'Outros'
+        });
+    }
+
+    saveFinanceState();
+    closeModal('modal-crypto-withdraw');
+    renderCryptoModule();
+}
+
+function openCryptoConfigModal() {
+    const modal = document.getElementById('modal-crypto-config');
+    const inputInit = document.getElementById('crypto-config-initial-balance');
+    const inputRate = document.getElementById('crypto-config-usdt-rate');
+    if (!modal) return;
+    if (inputInit) inputInit.value = financeState.cryptoFutures ? (financeState.cryptoFutures.initialBalance || 60.0) : 60.0;
+    if (inputRate) inputRate.value = financeState.cryptoFutures ? (financeState.cryptoFutures.usdtRate || 5.10) : 5.10;
+    modal.style.display = 'flex';
+}
+
+function saveCryptoConfig(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const inputInit = document.getElementById('crypto-config-initial-balance');
+    const inputRate = document.getElementById('crypto-config-usdt-rate');
+    if (!financeState.cryptoFutures) financeState.cryptoFutures = {};
+
+    const newInit = inputInit ? parseFloat(inputInit.value) || 60.0 : 60.0;
+    const newRate = inputRate ? parseFloat(inputRate.value) || 5.05 : 5.05;
+
+    financeState.cryptoFutures.initialBalance = newInit;
+    financeState.cryptoFutures.usdtRate = newRate;
+
+    // Recalculate BRL PnL for all items in history that have pnlUSDT
+    if (Array.isArray(financeState.cryptoFutures.history)) {
+        financeState.cryptoFutures.history.forEach(item => {
+            if (item.pnlUSDT !== undefined && item.pnlUSDT !== null) {
+                item.pnl = Number(item.pnlUSDT) * newRate;
+            }
+        });
+    }
+
+    saveFinanceState();
+    closeModal('modal-crypto-config');
+    renderCryptoModule();
+}
+
+function openCryptoImportCSVModal() {
+    const modal = document.getElementById('modal-crypto-import-csv');
+    if (modal) modal.style.display = 'flex';
+}
+
+function executeCryptoCSVImport() {
+    const fileInput = document.getElementById('crypto-csv-file-input');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        alert('Por favor, selecione um arquivo CSV.');
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        try {
+            const text = e.target.result;
+            const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length < 2) {
+                alert('Arquivo CSV vazio ou sem dados suficientes.');
+                return;
+            }
+
+            // Detect separator (tab, comma, or semicolon)
+            const firstLine = lines[0];
+            let sep = '\t';
+            if (firstLine.includes(',')) sep = ',';
+            else if (firstLine.includes(';')) sep = ';';
+
+            // Find header index
+            let headerIdx = -1;
+            let headers = [];
+            for (let i = 0; i < lines.length; i++) {
+                const cols = lines[i].split(sep).map(c => c.replace(/^["']|["']$/g, '').trim());
+                if (cols.some(c => c.toLowerCase().includes('trading pair') || c.toLowerCase().includes('pair') || c.toLowerCase().includes('pnl'))) {
+                    headerIdx = i;
+                    headers = cols;
+                    break;
+                }
+            }
+
+            if (headerIdx === -1) {
+                headers = lines[0].split(sep).map(c => c.replace(/^["']|["']$/g, '').trim());
+                headerIdx = 0;
+            }
+
+            const getColIdx = (names) => {
+                return headers.findIndex(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
+            };
+
+            const pairIdx = getColIdx(['trading pair', 'pair', 'par']);
+            const dirIdx = getColIdx(['direction', 'direcao', 'side']);
+            const openTimeIdx = getColIdx(['opening time', 'open time', 'data abertura']);
+            const closeTimeIdx = getColIdx(['closed time', 'close time', 'data fechamento', 'time', 'data']);
+            const entryIdx = getColIdx(['avg. entry price', 'entry price', 'preco entrada']);
+            const closePriceIdx = getColIdx(['avg. closing price', 'closing price', 'close price', 'preco saida']);
+            const pnlIdx = getColIdx(['position pnl', 'pnl', 'lucro']);
+            const fundingIdx = getColIdx(['funding fee', 'funding']);
+            const openFeeIdx = getColIdx(['opening fee']);
+            const closeFeeIdx = getColIdx(['closing fee']);
+
+            const cleanNum = (valStr) => {
+                if (!valStr) return 0;
+                let cleaned = String(valStr).replace(/usdt/gi, '').replace(/\s+/g, '').replace(/,/g, '.').trim();
+                return parseFloat(cleaned) || 0;
+            };
+
+            // Clear previous imported CSV trades to prevent doubling values on re-import
+            if (Array.isArray(financeState.cryptoFutures.history)) {
+                financeState.cryptoFutures.history = financeState.cryptoFutures.history.filter(h => h.type === 'DEPOSIT' || h.type === 'WITHDRAW');
+            } else {
+                financeState.cryptoFutures.history = [];
+            }
+
+            let importedCount = 0;
+            const usdtRate = Number(financeState.cryptoFutures.usdtRate) || 5.05;
+
+            for (let i = headerIdx + 1; i < lines.length; i++) {
+                const cols = lines[i].split(sep).map(c => c.replace(/^["']|["']$/g, '').trim());
+                if (cols.length < 2) continue;
+
+                const pair = pairIdx !== -1 ? cols[pairIdx] : 'BTCUSDT';
+                let direction = dirIdx !== -1 ? cols[dirIdx] : 'LONG';
+                if (direction.toLowerCase().includes('short')) direction = 'SHORT';
+                else direction = 'LONG';
+
+                const closeTime = closeTimeIdx !== -1 ? cols[closeTimeIdx] : (openTimeIdx !== -1 ? cols[openTimeIdx] : new Date().toISOString());
+                const entryPrice = entryIdx !== -1 ? cleanNum(cols[entryIdx]) : 0;
+                const closePrice = closePriceIdx !== -1 ? cleanNum(cols[closePriceIdx]) : 0;
+
+                const posPnL = pnlIdx !== -1 ? cleanNum(cols[pnlIdx]) : 0;
+                const netPnLUSDT = posPnL;
+                const netPnLBRL = netPnLUSDT * usdtRate;
+
+                financeState.cryptoFutures.history.push({
+                    id: 'tr_' + Math.random().toString(36).substr(2, 9),
+                    type: 'TRADE',
+                    pair: pair.toUpperCase(),
+                    direction: direction,
+                    entryPrice: entryPrice,
+                    closePrice: closePrice,
+                    pnlUSDT: netPnLUSDT,
+                    pnl: netPnLBRL,
+                    closeTime: closeTime
+                });
+                importedCount++;
+            }
+
+            // Sort history by closeTime
+            financeState.cryptoFutures.history.sort((a, b) => {
+                const dA = new Date(a.closeTime || a.date || 0);
+                const dB = new Date(b.closeTime || b.date || 0);
+                return dA - dB;
+            });
+
+            saveFinanceState();
+            closeModal('modal-crypto-import-csv');
+            renderCryptoModule();
+            alert(`🎉 Importação de CSV atualizada com sucesso! ${importedCount} operação(ões) foram importadas.`);
+
+        } catch (err) {
+            alert('Erro ao importar arquivo CSV: ' + err.message);
+        }
+    };
+
+    reader.readAsText(file);
+}
+
+function setCryptoTimeframe(tf) {
+    cryptoTimeframe = tf;
+    document.querySelectorAll('.crypto-tf-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tf === tf);
+    });
+    renderCryptoEquityChart();
+}
+
+function renderCryptoEquityChart() {
+    const canvas = document.getElementById('crypto-equity-chart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const cryptoData = financeState.cryptoFutures || {};
+    const initialBal = Number(cryptoData.initialBalance) || 60.0;
+    const history = Array.isArray(cryptoData.history) ? [...cryptoData.history] : [];
+
+    // Sort history by date
+    history.sort((a, b) => {
+        const dA = new Date(a.closeTime || a.date || 0);
+        const dB = new Date(b.closeTime || b.date || 0);
+        return dA - dB;
+    });
+
+    // Build timeline points with timestamp metadata
+    const points = [];
+    let runningBal = initialBal;
+
+    const startDate = history.length > 0 ? (history[0].closeTime || history[0].date) : 'Início';
+    const startTimestamp = history.length > 0 ? new Date(startDate).getTime() : Date.now();
+
+    points.push({
+        label: typeof startDate === 'string' ? startDate.substring(0, 10) : 'Início',
+        timestamp: startTimestamp,
+        balance: runningBal
+    });
+
+    let latestTimestamp = startTimestamp;
+
+    history.forEach(item => {
+        const dateStr = (item.closeTime || item.date || '').substring(0, 10) || 'Data';
+        const itemTime = new Date(item.closeTime || item.date || Date.now()).getTime();
+        if (!isNaN(itemTime) && itemTime > latestTimestamp) {
+            latestTimestamp = itemTime;
+        }
+
+        if (item.type === 'DEPOSIT') {
+            runningBal += Number(item.amount) || 0;
+        } else if (item.type === 'WITHDRAW') {
+            runningBal -= Number(item.amount) || 0;
+        } else {
+            runningBal += Number(item.pnl) || 0;
+        }
+
+        points.push({
+            label: dateStr,
+            timestamp: isNaN(itemTime) ? Date.now() : itemTime,
+            balance: parseFloat(runningBal.toFixed(2))
+        });
+    });
+
+    // Filter points based on timeframe relative to latest activity timestamp
+    let filteredPoints = points;
+
+    if (cryptoTimeframe !== 'ALL' && points.length > 1) {
+        let daysToCut = 90;
+        if (cryptoTimeframe === '1D') daysToCut = 1;
+        else if (cryptoTimeframe === '1W') daysToCut = 7;
+        else if (cryptoTimeframe === '1M') daysToCut = 30;
+        else if (cryptoTimeframe === '3M') daysToCut = 90;
+        else if (cryptoTimeframe === '6M') daysToCut = 180;
+
+        const refTime = latestTimestamp > 0 ? latestTimestamp : Date.now();
+        const cutOffTime = refTime - (daysToCut * 24 * 60 * 60 * 1000);
+
+        const afterCutoff = points.filter(p => p.timestamp >= cutOffTime);
+
+        if (afterCutoff.length > 0) {
+            // Find starting balance right before cutoff to anchor the curve
+            const beforeCutoff = points.filter(p => p.timestamp < cutOffTime);
+            const anchorPoint = beforeCutoff.length > 0 ? beforeCutoff[beforeCutoff.length - 1] : points[0];
+
+            if (anchorPoint && !afterCutoff.includes(anchorPoint)) {
+                filteredPoints = [anchorPoint, ...afterCutoff];
+            } else {
+                filteredPoints = afterCutoff;
+            }
+        }
+    }
+
+    const filteredLabels = filteredPoints.map(p => p.label);
+    const filteredData = filteredPoints.map(p => p.balance);
+
+    if (cryptoEquityChartInstance) {
+        cryptoEquityChartInstance.destroy();
+    }
+
+    // Gradient styling for equity curve
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.35)');
+    gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+
+    cryptoEquityChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: filteredLabels,
+            datasets: [{
+                label: 'Banca Total (R$)',
+                data: filteredData,
+                borderColor: '#3b82f6',
+                borderWidth: 3,
+                backgroundColor: gradient,
+                fill: true,
+                tension: 0.3,
+                pointBackgroundColor: '#60a5fa',
+                pointBorderColor: '#1e3a8a',
+                pointRadius: filteredData.length > 30 ? 2 : 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return ` Banca: R$ ${context.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#94a3b8', font: { size: 11 } }
+                },
+                y: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: {
+                        color: '#94a3b8',
+                        font: { size: 11 },
+                        callback: function(val) { return 'R$ ' + val; }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderCryptoHistoryTable() {
+    const tbody = document.getElementById('crypto-history-tbody');
+    if (!tbody) return;
+
+    const cryptoData = financeState.cryptoFutures || {};
+    const initialBal = Number(cryptoData.initialBalance) || 60.0;
+    const history = Array.isArray(cryptoData.history) ? [...cryptoData.history] : [];
+
+    if (history.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 24px; color: var(--text-muted);">Nenhum trade importado ou registrado ainda.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    // Calculate running balance for each item in chronological order
+    const chronological = [...history].sort((a, b) => {
+        const dA = new Date(a.closeTime || a.date || 0);
+        const dB = new Date(b.closeTime || b.date || 0);
+        return dA - dB;
+    });
+
+    let runningBal = initialBal;
+    const balanceMap = new Map();
+
+    chronological.forEach(item => {
+        if (item.type === 'DEPOSIT') {
+            runningBal += Number(item.amount) || 0;
+        } else if (item.type === 'WITHDRAW') {
+            runningBal -= Number(item.amount) || 0;
+        } else {
+            runningBal += Number(item.pnl) || 0;
+        }
+        balanceMap.set(item.id, runningBal);
+    });
+
+    // Sort newest first for table display
+    const sorted = [...history].reverse();
+    let html = '';
+
+    sorted.forEach(item => {
+        const dateStr = (item.closeTime || item.date || '--').substring(0, 19).replace('T', ' ');
+        const isTrade = item.type === 'TRADE' || !item.type;
+        const isDeposit = item.type === 'DEPOSIT';
+        const isWithdraw = item.type === 'WITHDRAW';
+
+        let typeBadge = '';
+        let pairDirection = '--';
+        let entryStr = '--';
+        let closeStr = '--';
+        let marginStr = '--';
+        let pnlStr = '--';
+        let pnlColor = 'var(--text-main)';
+
+        if (isTrade) {
+            const isLong = item.direction === 'LONG';
+            typeBadge = `<span style="padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.72rem; background: rgba(247, 147, 26, 0.15); color: #f7931a;">TRADE</span>`;
+            pairDirection = `<strong>${item.pair || 'BTCUSDT'}</strong> <span style="color: ${isLong ? '#10b981' : '#ef4444'}; font-weight:700;">${item.direction || 'LONG'} ${item.leverage ? item.leverage + 'x' : ''}</span>`;
+            entryStr = item.entryPrice ? `$ ${item.entryPrice.toLocaleString('en-US')}` : '--';
+            closeStr = item.closePrice ? `$ ${item.closePrice.toLocaleString('en-US')}` : '--';
+            marginStr = item.margin ? formatBRL(item.margin) : '--';
+            const pnl = Number(item.pnl) || 0;
+            const usdtDetail = item.pnlUSDT !== undefined ? ` <small style="font-weight:400; color:var(--text-muted);">($ ${item.pnlUSDT >= 0 ? '+' : ''}${item.pnlUSDT.toFixed(2)})</small>` : '';
+            pnlStr = `${pnl >= 0 ? '+' : ''}${formatBRL(pnl)}${usdtDetail}`;
+            pnlColor = pnl >= 0 ? 'var(--success, #10b981)' : 'var(--danger, #ef4444)';
+        } else if (isDeposit) {
+            typeBadge = `<span style="padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.72rem; background: rgba(16, 185, 129, 0.15); color: #10b981;">APORTE</span>`;
+            pairDirection = `Depósito / Aporte`;
+            pnlStr = `+${formatBRL(item.amount)}`;
+            pnlColor = 'var(--success, #10b981)';
+        } else if (isWithdraw) {
+            typeBadge = `<span style="padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 0.72rem; background: rgba(59, 130, 246, 0.15); color: #3b82f6;">SAQUE</span>`;
+            pairDirection = `Retirada de Lucro`;
+            pnlStr = `-${formatBRL(item.amount)}`;
+            pnlColor = '#3b82f6';
+        }
+
+        const resBal = balanceMap.get(item.id) || 0;
+
+        html += `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                <td style="padding: 10px; color: var(--text-muted);">${dateStr}</td>
+                <td style="padding: 10px;">${typeBadge}</td>
+                <td style="padding: 10px;">${pairDirection}</td>
+                <td style="padding: 10px;">${entryStr}</td>
+                <td style="padding: 10px;">${closeStr}</td>
+                <td style="padding: 10px;">${marginStr}</td>
+                <td style="padding: 10px; font-weight: 800; color: ${pnlColor};">${pnlStr}</td>
+                <td style="padding: 10px; font-weight: 700;">${formatBRL(resBal)}</td>
+                <td style="padding: 10px; text-align: center;">
+                    <button class="btn-icon btn-sm" onclick="deleteCryptoHistoryItem('${item.id}')" title="Excluir Lançamento" style="background: transparent; border: none; color: #ef4444; cursor: pointer;">
+                        <i data-lucide="trash" style="width: 14px; height: 14px;"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+    if (window.lucide) lucide.createIcons();
+}
+
+function filterCryptoHistoryTable() {
+    const input = document.getElementById('crypto-search-input');
+    if (!input) return;
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll('#crypto-history-tbody tr');
+
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(filter) ? '' : 'none';
+    });
+}
+
+function deleteCryptoHistoryItem(id) {
+    if (!confirm('Deseja excluir este item do histórico de futuros?')) return;
+    if (!financeState.cryptoFutures || !Array.isArray(financeState.cryptoFutures.history)) return;
+
+    financeState.cryptoFutures.history = financeState.cryptoFutures.history.filter(h => h.id !== id);
+    saveFinanceState();
+    renderCryptoModule();
+}
+
+function clearCryptoHistory() {
+    if (!confirm('ATENÇÃO: Deseja apagar TODO o histórico e resetar o módulo de Cripto Futuros do zero?')) return;
+    financeState.cryptoFutures = {
+        initialBalance: 60.0,
+        usdtRate: 5.05,
+        currency: 'BRL',
+        activeTrade: null,
+        history: []
+    };
+    saveFinanceState();
+    renderCryptoModule();
 }

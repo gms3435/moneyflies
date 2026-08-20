@@ -358,6 +358,9 @@
             <button class="moneyflies-nav-btn" data-subtab="fixed" onclick="switchFinanceSubTab('fixed')">
                 <i data-lucide="shield-alert" style="width: 16px; height: 16px;"></i> Despesas Fixas & Assinaturas
             </button>
+            <button class="moneyflies-nav-btn" data-subtab="crypto" onclick="switchFinanceSubTab('crypto')">
+                <i data-lucide="bitcoin" style="width: 16px; height: 16px;"></i> Cripto Futuros (BTC)
+            </button>
             <button class="moneyflies-nav-btn" data-subtab="settings" onclick="switchFinanceSubTab('settings')">
                 <i data-lucide="settings" style="width: 16px; height: 16px;"></i> Configurações & Dados
             </button>
@@ -806,6 +809,147 @@
                 </div>
             </div>
 
+            <!-- 7. CRIPTO FUTUROS (BTC) -->
+            <div id="subtab-crypto" class="moneyflies-subtab-content" style="display: none;">
+                
+                <!-- HEADER DO DASHBOARD DE TRADING (BANCA E AÇÕES) -->
+                <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <i data-lucide="bitcoin" style="color: #f7931a; width: 24px; height: 24px;"></i>
+                                <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--text-main); margin: 0;">Banca Cripto Futuros (BTC)</h2>
+                                <span class="moneyflies-badge" style="background: rgba(247, 147, 26, 0.15); color: #f7931a; border-color: rgba(247, 147, 26, 0.3);">Exclusivo BTC</span>
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Acompanhamento visual da curva de capital, diário de trade e gerenciamento de aportes/retiradas.</p>
+                        </div>
+
+                        <!-- BOTÕES DE AÇÃO -->
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <button class="btn-primary" onclick="openCryptoDepositModal()" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.85rem; font-weight: 700; background: #10b981 !important;">
+                                <i data-lucide="arrow-down-left" style="width: 16px; height: 16px;"></i> Depositar (Aporte)
+                            </button>
+                            <button class="btn-primary" onclick="openCryptoWithdrawModal()" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.85rem; font-weight: 700; background: #3b82f6 !important;">
+                                <i data-lucide="arrow-up-right" style="width: 16px; height: 16px;"></i> Sacar (Lucro)
+                            </button>
+                            <button class="btn-primary" onclick="openCryptoTradeModal()" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.85rem; font-weight: 700;">
+                                <i data-lucide="zap" style="width: 16px; height: 16px;"></i> Novo Trade (BTC)
+                            </button>
+                            <button class="btn-secondary" onclick="openCryptoImportCSVModal()" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.85rem; font-weight: 700;">
+                                <i data-lucide="file-up" style="width: 16px; height: 16px;"></i> Importar CSV
+                            </button>
+                            <button class="btn-secondary" onclick="openCryptoConfigModal()" style="display: flex; align-items: center; gap: 6px; padding: 8px 10px; font-size: 0.85rem;" title="Configurar Banca">
+                                <i data-lucide="settings" style="width: 16px; height: 16px;"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- CARDS DE ESTATÍSTICAS DE BANCA -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                        <div class="finance-card-summary">
+                            <span class="finance-card-title">Saldo Total da Banca</span>
+                            <div class="finance-card-value val-sensivel" id="crypto-total-balance" style="color: var(--text-main);">R$ 60,00</div>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);" id="crypto-initial-balance-desc">Banca Inicial: R$ 60,00</span>
+                        </div>
+
+                        <div class="finance-card-summary">
+                            <span class="finance-card-title">PnL Total Acumulado</span>
+                            <div class="finance-card-value val-sensivel" id="crypto-total-pnl" style="color: var(--success, #10b981);">+R$ 0,00</div>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);" id="crypto-pnl-percent">0,00% sobre a banca</span>
+                        </div>
+
+                        <div class="finance-card-summary">
+                            <span class="finance-card-title">Taxa de Acerto (Win Rate)</span>
+                            <div class="finance-card-value" id="crypto-win-rate" style="color: #f7931a;">-- %</div>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);" id="crypto-trades-count">0 trades encerrados</span>
+                        </div>
+
+                        <div class="finance-card-summary">
+                            <span class="finance-card-title">Lucros vs Aportes</span>
+                            <div class="finance-card-value val-sensivel" id="crypto-deposits-withdraws" style="color: var(--text-main);">R$ 0,00 / R$ 0,00</div>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">Aportes / Saques efetuados</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GRÁFICO DE EVOLUÇÃO DE PATRIMÔNIO (EQUITY CURVE) -->
+                <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <i data-lucide="trending-up" style="color: #3b82f6; width: 22px; height: 22px;"></i>
+                            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin: 0;">Evolução do Patrimônio (Equity Curve)</h3>
+                        </div>
+
+                        <!-- FILTROS DE TEMPO ESTILO PÍLULA (1D, 1W, 1M, 3M, 6M, ALL) -->
+                        <div style="display: flex; gap: 4px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+                            <button class="crypto-tf-btn" data-tf="1D" onclick="setCryptoTimeframe('1D')">1D</button>
+                            <button class="crypto-tf-btn" data-tf="1W" onclick="setCryptoTimeframe('1W')">1W</button>
+                            <button class="crypto-tf-btn" data-tf="1M" onclick="setCryptoTimeframe('1M')">1M</button>
+                            <button class="crypto-tf-btn active" data-tf="3M" onclick="setCryptoTimeframe('3M')">3M</button>
+                            <button class="crypto-tf-btn" data-tf="6M" onclick="setCryptoTimeframe('6M')">6M</button>
+                            <button class="crypto-tf-btn" data-tf="ALL" onclick="setCryptoTimeframe('ALL')">Tudo</button>
+                        </div>
+                    </div>
+
+                    <!-- CONTAINER DO CHART CANVAS -->
+                    <div style="position: relative; height: 320px; width: 100%;">
+                        <canvas id="crypto-equity-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- DIÁRIO DE TRADE: PAINEL DE OPERAÇÃO EM ANDAMENTO (BTC) -->
+                <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <i data-lucide="crosshair" style="color: #f7931a; width: 22px; height: 22px;"></i>
+                            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin: 0;">Diário de Trade: Operação em Andamento</h3>
+                        </div>
+                        <span id="crypto-active-status-badge" class="moneyflies-badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border-color: rgba(148, 163, 184, 0.3);">Sem Posição Ativa</span>
+                    </div>
+
+                    <div id="crypto-active-trade-container">
+                        <!-- Renderizado via JS -->
+                    </div>
+                </div>
+
+                <!-- TABELA DE HISTÓRICO DE OPERAÇÕES E MOVIMENTAÇÕES -->
+                <div class="glass-panel" style="padding: 24px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                        <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin: 0;">Histórico de Trades e Movimentações</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="crypto-search-input" onkeyup="filterCryptoHistoryTable()" placeholder="Buscar trade ou data..." class="form-control" style="width: 220px; padding: 6px 12px !important; font-size: 0.82rem !important;">
+                            <button class="btn-secondary btn-sm" onclick="clearCryptoHistory()" style="color: #ef4444;" title="Limpar Histórico">
+                                <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i> Limpar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: var(--text-muted);">
+                                    <th style="padding: 10px;">Data / Hora</th>
+                                    <th style="padding: 10px;">Tipo</th>
+                                    <th style="padding: 10px;">Par / Direção</th>
+                                    <th style="padding: 10px;">Preço Entrada</th>
+                                    <th style="padding: 10px;">Preço Saída</th>
+                                    <th style="padding: 10px;">Margem</th>
+                                    <th style="padding: 10px;">PnL Líquido</th>
+                                    <th style="padding: 10px;">Saldo Resultante</th>
+                                    <th style="padding: 10px; text-align: center;">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="crypto-history-tbody">
+                                <tr>
+                                    <td colspan="9" style="text-align: center; padding: 24px; color: var(--text-muted);">Nenhum trade importado ou registrado ainda.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
         </main>
 
     </div>
@@ -993,6 +1137,205 @@
                 <div style="display: flex; justify-content: flex-end; gap: 10px;">
                     <button type="button" class="btn-secondary" onclick="closeModal('modal-fixed-expense')">Cancelar</button>
                     <button type="submit" class="btn-primary">Salvar Despesa Fixa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. MODAL: NOVO TRADE MANUAL (BTC) -->
+    <div id="modal-crypto-trade" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 500px; padding: 24px; border-radius: var(--border-radius-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Abrir Operação em Andamento (BTC)</h3>
+                <button class="btn-icon" onclick="closeModal('modal-crypto-trade')"><i data-lucide="x"></i></button>
+            </div>
+            <form onsubmit="saveCryptoTrade(event)">
+                <div style="display: flex; gap: 10px; margin-bottom: 14px;">
+                    <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--border-radius-md); border: 1px solid rgba(16, 185, 129, 0.4); cursor: pointer; font-size: 0.9rem; font-weight: 800; color: #10b981; background: rgba(10, 185, 129, 0.1);" id="crypto-direction-long-label">
+                        <input type="radio" name="cryptoDirection" value="LONG" checked onchange="toggleCryptoDirectionUI('LONG')" style="display: none;">
+                        🟢 LONG (Compra)
+                    </label>
+                    <label style="flex: 1; text-align: center; padding: 10px; border-radius: var(--border-radius-md); border: 1px solid rgba(239, 68, 68, 0.2); cursor: pointer; font-size: 0.9rem; font-weight: 800; color: var(--text-muted); background: transparent;" id="crypto-direction-short-label">
+                        <input type="radio" name="cryptoDirection" value="SHORT" onchange="toggleCryptoDirectionUI('SHORT')" style="display: none;">
+                        🔴 SHORT (Venda)
+                    </label>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Margem Alocada (R$)</label>
+                        <input type="number" step="0.01" min="1" id="crypto-trade-margin" required placeholder="50.00" class="form-control">
+                    </div>
+                    <div>
+                        <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Alavancagem (x)</label>
+                        <input type="number" min="1" max="125" id="crypto-trade-leverage" value="20" required placeholder="20" class="form-control">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Preço de Entrada ($ USD)</label>
+                    <input type="number" step="0.01" min="1" id="crypto-trade-entry" required placeholder="Ex: 64500.00" class="form-control">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+                    <div>
+                        <label class="form-label" style="color: #ef4444; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Stop Loss ($ USD)</label>
+                        <input type="number" step="0.01" id="crypto-trade-sl" placeholder="Ex: 63800.00" class="form-control">
+                    </div>
+                    <div>
+                        <label class="form-label" style="color: #10b981; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Take Profit ($ USD)</label>
+                        <input type="number" step="0.01" id="crypto-trade-tp" placeholder="Ex: 67000.00" class="form-control">
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-secondary" onclick="closeModal('modal-crypto-trade')">Cancelar</button>
+                    <button type="submit" class="btn-primary">Registrar Operação Ativa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 6. MODAL: ENCERRAR TRADE ATIVO -->
+    <div id="modal-crypto-close-trade" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 480px; padding: 24px; border-radius: var(--border-radius-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Encerrar Operação em BTC</h3>
+                <button class="btn-icon" onclick="closeModal('modal-crypto-close-trade')"><i data-lucide="x"></i></button>
+            </div>
+            <form onsubmit="executeCloseCryptoTrade(event)">
+                <div style="margin-bottom: 14px; background: rgba(255,255,255,0.03); padding: 12px; border-radius: var(--border-radius-md); border: 1px solid rgba(255,255,255,0.08);" id="close-trade-summary">
+                    <!-- Resumo preenchido via JS -->
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Preço de Saída / Fechamento ($ USD)</label>
+                    <input type="number" step="0.01" min="1" id="crypto-close-price" oninput="calculateCryptoClosePnL()" required placeholder="Ex: 66000.00" class="form-control">
+                </div>
+
+                <div style="margin-bottom: 16px; background: rgba(0,0,0,0.3); padding: 14px; border-radius: var(--border-radius-md); text-align: center; border: 1px solid rgba(255,255,255,0.1);">
+                    <span style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 2px;">PnL Estimado de Fechamento</span>
+                    <span id="crypto-calculated-pnl" style="font-size: 1.4rem; font-weight: 800; color: var(--text-main);">R$ 0,00</span>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-secondary" onclick="closeModal('modal-crypto-close-trade')">Cancelar</button>
+                    <button type="submit" class="btn-primary" style="background: #10b981 !important;">Confirmar Encerramento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 7. MODAL: DEPOSITAR (APORTE) -->
+    <div id="modal-crypto-deposit" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 450px; padding: 24px; border-radius: var(--border-radius-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Depositar na Corretora (Aporte)</h3>
+                <button class="btn-icon" onclick="closeModal('modal-crypto-deposit')"><i data-lucide="x"></i></button>
+            </div>
+            <form onsubmit="executeCryptoDeposit(event)">
+                <div style="margin-bottom: 12px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Valor do Depósito (R$)</label>
+                    <input type="number" step="0.01" min="0.01" id="crypto-deposit-amount" required placeholder="100.00" class="form-control">
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Data do Aporte</label>
+                    <input type="date" id="crypto-deposit-date" required class="form-control">
+                </div>
+
+                <div style="margin-bottom: 18px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-main); cursor: pointer;">
+                        <input type="checkbox" id="crypto-deposit-sync" checked style="accent-color: var(--primary);">
+                        Registrar também como Despesa no MoneyFlies (Aporte Cripto)
+                    </label>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-secondary" onclick="closeModal('modal-crypto-deposit')">Cancelar</button>
+                    <button type="submit" class="btn-primary" style="background: #10b981 !important;">Confirmar Aporte</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 8. MODAL: SACAR (RETIRADA DE LUCRO) -->
+    <div id="modal-crypto-withdraw" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 450px; padding: 24px; border-radius: var(--border-radius-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Sacar da Corretora (Realização de Lucro)</h3>
+                <button class="btn-icon" onclick="closeModal('modal-crypto-withdraw')"><i data-lucide="x"></i></button>
+            </div>
+            <form onsubmit="executeCryptoWithdraw(event)">
+                <div style="margin-bottom: 12px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Valor do Saque (R$)</label>
+                    <input type="number" step="0.01" min="0.01" id="crypto-withdraw-amount" required placeholder="50.00" class="form-control">
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Data do Saque</label>
+                    <input type="date" id="crypto-withdraw-date" required class="form-control">
+                </div>
+
+                <div style="margin-bottom: 18px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-main); cursor: pointer;">
+                        <input type="checkbox" id="crypto-withdraw-sync" checked style="accent-color: var(--primary);">
+                        Registrar também como Receita no MoneyFlies (Lucro Cripto)
+                    </label>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-secondary" onclick="closeModal('modal-crypto-withdraw')">Cancelar</button>
+                    <button type="submit" class="btn-primary" style="background: #3b82f6 !important;">Confirmar Saque</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 9. MODAL: IMPORTAR CSV DE FUTUROS -->
+    <div id="modal-crypto-import-csv" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 500px; padding: 24px; border-radius: var(--border-radius-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Importar Relatório de Trades (CSV)</h3>
+                <button class="btn-icon" onclick="closeModal('modal-crypto-import-csv')"><i data-lucide="x"></i></button>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">
+                Selecione o arquivo CSV exportado da sua corretora (ex: Binance/Bybit). O leitor removerá sufixos "USDT", converterá vírgulas e adicionará os trades à curva de banca.
+            </p>
+            <div style="margin-bottom: 16px;">
+                <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Arquivo CSV</label>
+                <input type="file" id="crypto-csv-file-input" accept=".csv, .txt" class="form-control">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn-secondary" onclick="closeModal('modal-crypto-import-csv')">Cancelar</button>
+                <button type="button" class="btn-primary" onclick="executeCryptoCSVImport()">Processar CSV</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 10. MODAL: CONFIGURAR BANCA INICIAL E CÂMBIO -->
+    <div id="modal-crypto-config" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel" style="max-width: 450px; padding: 24px; border-radius: var(--border-radius-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Configurar Banca & Câmbio</h3>
+                <button class="btn-icon" onclick="closeModal('modal-crypto-config')"><i data-lucide="x"></i></button>
+            </div>
+            <form onsubmit="saveCryptoConfig(event)">
+                <div style="margin-bottom: 12px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Banca Inicial (R$)</label>
+                    <input type="number" step="0.01" min="0" id="crypto-config-initial-balance" required placeholder="60.00" class="form-control">
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label class="form-label" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; display: block;">Cotação USDT / BRL (R$)</label>
+                    <input type="number" step="0.01" min="0.01" id="crypto-config-usdt-rate" required placeholder="5.10" class="form-control">
+                    <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 4px;">Usado para converter os lucros em USDT dos arquivos CSV para Reais (R$). Ex: 5.10</small>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-secondary" onclick="closeModal('modal-crypto-config')">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar Configuração</button>
                 </div>
             </form>
         </div>
